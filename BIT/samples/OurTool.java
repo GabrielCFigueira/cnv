@@ -7,6 +7,34 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
+import com.amazonaws.services.dynamodbv2.model.Condition;
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeyType;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.amazonaws.services.dynamodbv2.model.ScanResult;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import com.amazonaws.services.dynamodbv2.util.TableUtils;
+import com.amazonaws.client.builder.AwsClientBuilder;
 
 public class OurTool 
 {
@@ -35,6 +63,19 @@ public class OurTool
 
 	}
 
+	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores) {
+        Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+        item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
+        item.put("allocations", new AttributeValue().withN(Integer.toString(allocations)));
+        item.put("loadsStores", new AttributeValue().withN(Integer.toString(loadsStores)));
+        item.put("lines", new AttributeValue().withN(Integer.toString(0)));
+        item.put("columns", new AttributeValue().withN(Integer.toString(0)));
+        item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
+        item.put("Algorithm", new AttributeValue().withNULL(true));
+        
+        return item;
+    }
+
 	private static ConcurrentMap<Long, StatisticsData> _data = new ConcurrentHashMap<Long, StatisticsData>();
 
 	public static void printUsage() 
@@ -52,7 +93,6 @@ public class OurTool
 			System.out.println("        in which case only in_path is required");
 			System.exit(-1);
 		}
-
 
 	public static void initialize(String dummy) {
 		long id = Thread.currentThread().getId();
@@ -468,6 +508,57 @@ public class OurTool
 					data.branch_info[i].print();
 				}
 			}
+
+        int allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
+        long threadId = Thread.currentThread().getId();
+        int loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
+
+        try{
+            AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
+                new AwsClientBuilder.EndpointConfiguration("http://localhost:8042", "eu-west-1"))
+                .build();
+    
+            String tableName = "requests_data";
+
+            CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
+                .withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH))
+                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S))
+                .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+    
+            TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
+            TableUtils.waitUntilActive(dynamoDB, tableName);
+    
+            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores);
+            PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
+            PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
+
+            // Scan items for data where thread id >=1
+            HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+            Condition condition = new Condition()
+                .withComparisonOperator(ComparisonOperator.GE.toString())
+                .withAttributeValueList(new AttributeValue("1"));
+            scanFilter.put("ThreadId", condition);
+            ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
+            ScanResult scanResult = dynamoDB.scan(scanRequest);
+            System.out.println("Result: " + scanResult);
+
+        } catch (AmazonServiceException ase) {
+            System.out.println("Caught an AmazonServiceException, which means your request made it "
+                    + "to AWS, but was rejected with an error response for some reason.");
+            System.out.println("Error Message:    " + ase.getMessage());
+            System.out.println("HTTP Status Code: " + ase.getStatusCode());
+            System.out.println("AWS Error Code:   " + ase.getErrorCode());
+            System.out.println("Error Type:       " + ase.getErrorType());
+            System.out.println("Request ID:       " + ase.getRequestId());
+        } catch (AmazonClientException ace) {
+            System.out.println("Caught an AmazonClientException, which means the client encountered "
+                    + "a serious internal problem while trying to communicate with AWS, "
+                    + "such as not being able to access the network.");
+            System.out.println("Error Message: " + ace.getMessage());
+        }
+        catch(InterruptedException e){
+			System.out.println("It may have been interrupted");
+        }
 		}
 	
 			
