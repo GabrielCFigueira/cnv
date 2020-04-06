@@ -39,7 +39,7 @@ public class OurTool
 
 	public static void printUsage() 
 		{
-			System.out.println("Syntax: java StatisticsTool -stat_type in_path [out_path]");
+			System.out.println("Syntax: java OurTool -stat_type in_path [out_path]");
 			System.out.println("        where stat_type can be:");
 			System.out.println("        dynamic:    dynamic properties");
 			System.out.println("        alloc:      memory allocation instructions");
@@ -54,7 +54,7 @@ public class OurTool
 		}
 
 
-	private static void Initialize() {
+	public static void initialize(String dummy) {
 		long id = Thread.currentThread().getId();
 
 		if(!_data.containsKey(id))
@@ -72,16 +72,22 @@ public class OurTool
 					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					ClassInfo ci = new ClassInfo(in_filename);
+					
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
-						routine.addBefore("StatisticsTool", "dynMethodCount", new Integer(1));
+					
+						if(routine.getMethodName().equals("solveSudoku"))
+							routine.addAfter("OurTool", "printDynamic", "null");
+						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
+							routine.addBefore("OurTool", "initialize", "null");
+						
+						routine.addBefore("OurTool", "dynMethodCount", new Integer(1));
                     
 						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
 							BasicBlock bb = (BasicBlock) b.nextElement();
-							bb.addBefore("StatisticsTool", "dynInstrCount", new Integer(bb.size()));
+							bb.addBefore("OurTool", "dynInstrCount", new Integer(bb.size()));
 						}
 					}
-					ci.addAfter("StatisticsTool", "printDynamic", "null");
 					ci.write(out_filename);
 				}
 			}
@@ -111,7 +117,7 @@ public class OurTool
 
     public static synchronized void dynInstrCount(int incr) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.dyn_instr_count += incr;
@@ -120,7 +126,7 @@ public class OurTool
 
     public static synchronized void dynMethodCount(int incr) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.dyn_method_count++;
@@ -136,9 +142,14 @@ public class OurTool
 					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					ClassInfo ci = new ClassInfo(in_filename);
-
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
+		
+						if(routine.getMethodName().equals("solveSudoku"))
+							routine.addAfter("OurTool", "printDynamic", "null");
+						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
+							routine.addBefore("OurTool", "initialize", null);
+						
 						InstructionArray instructions = routine.getInstructionArray();
 		  
 						for (Enumeration instrs = instructions.elements(); instrs.hasMoreElements(); ) {
@@ -148,11 +159,10 @@ public class OurTool
 								(opcode==InstructionTable.newarray) ||
 								(opcode==InstructionTable.anewarray) ||
 								(opcode==InstructionTable.multianewarray)) {
-								instr.addBefore("StatisticsTool", "allocCount", new Integer(opcode));
+								instr.addBefore("OurTool", "allocCount", new Integer(opcode));
 							}
 						}
 					}
-					ci.addAfter("StatisticsTool", "printAlloc", "null");
 					ci.write(out_filename);
 				}
 			}
@@ -171,7 +181,7 @@ public class OurTool
 
 	public static synchronized void allocCount(int type)
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			switch(type) {
@@ -200,29 +210,33 @@ public class OurTool
 					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					ClassInfo ci = new ClassInfo(in_filename);
-
+					
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
+						
+						if(routine.getMethodName().equals("solveSudoku"))
+							routine.addAfter("OurTool", "printDynamic", "null");
+						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
+							routine.addBefore("OurTool", "initialize", null);
 						
 						for (Enumeration instrs = (routine.getInstructionArray()).elements(); instrs.hasMoreElements(); ) {
 							Instruction instr = (Instruction) instrs.nextElement();
 							int opcode=instr.getOpcode();
 							if (opcode == InstructionTable.getfield)
-								instr.addBefore("StatisticsTool", "LSFieldCount", new Integer(0));
+								instr.addBefore("OurTool", "LSFieldCount", new Integer(0));
 							else if (opcode == InstructionTable.putfield)
-								instr.addBefore("StatisticsTool", "LSFieldCount", new Integer(1));
+								instr.addBefore("OurTool", "LSFieldCount", new Integer(1));
 							else {
 								short instr_type = InstructionTable.InstructionTypeTable[opcode];
 								if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
-									instr.addBefore("StatisticsTool", "LSCount", new Integer(0));
+									instr.addBefore("OurTool", "LSCount", new Integer(0));
 								}
 								else if (instr_type == InstructionTable.STORE_INSTRUCTION) {
-									instr.addBefore("StatisticsTool", "LSCount", new Integer(1));
+									instr.addBefore("OurTool", "LSCount", new Integer(1));
 								}
 							}
 						}
 					}
-					ci.addAfter("StatisticsTool", "printLoadStore", "null");
 					ci.write(out_filename);
 				}
 			}	
@@ -240,7 +254,7 @@ public class OurTool
 
 	public static synchronized void LSFieldCount(int type) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			if (type == 0)
@@ -251,7 +265,7 @@ public class OurTool
 
 	public static synchronized void LSCount(int type) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			if (type == 0)
@@ -296,23 +310,28 @@ public class OurTool
 
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
-						routine.addBefore("StatisticsTool", "setBranchMethodName", routine.getMethodName());
+						
+						if(routine.getMethodName().equals("solveSudoku"))
+							routine.addAfter("OurTool", "printDynamic", "null");
+						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
+							routine.addBefore("OurTool", "initialize", null);
+						
+						routine.addBefore("OurTool", "setBranchMethodName", routine.getMethodName());
 						InstructionArray instructions = routine.getInstructionArray();
 						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
 							BasicBlock bb = (BasicBlock) b.nextElement();
 							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
 							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
 							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
-								instr.addBefore("StatisticsTool", "setBranchPC", new Integer(instr.getOffset()));
-								instr.addBefore("StatisticsTool", "updateBranchNumber", new Integer(k));
-								instr.addBefore("StatisticsTool", "updateBranchOutcome", "BranchOutcome");
+								instr.addBefore("OurTool", "setBranchPC", new Integer(instr.getOffset()));
+								instr.addBefore("OurTool", "updateBranchNumber", new Integer(k));
+								instr.addBefore("OurTool", "updateBranchOutcome", "BranchOutcome");
 								k++;
 							}
 						}
 					}
-					ci.addBefore("StatisticsTool", "setBranchClassName", ci.getClassName());
-					ci.addBefore("StatisticsTool", "branchInit", new Integer(total));
-					ci.addAfter("StatisticsTool", "printBranch", "null");
+					ci.addBefore("OurTool", "setBranchClassName", ci.getClassName());
+					ci.addBefore("OurTool", "branchInit", new Integer(total));
 					ci.write(out_filename);
 				}
 			}	
@@ -320,7 +339,7 @@ public class OurTool
 
 	public static synchronized void setBranchClassName(String name)
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.branch_class_name = name;
@@ -328,7 +347,7 @@ public class OurTool
 
 	public static synchronized void setBranchMethodName(String name) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.branch_method_name = name;
@@ -336,7 +355,7 @@ public class OurTool
 	
 	public static synchronized void setBranchPC(int pc)
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.branch_pc = pc;
@@ -344,7 +363,7 @@ public class OurTool
 	
 	public static synchronized void branchInit(int n) 
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			if (data.branch_info == null) {
@@ -354,7 +373,7 @@ public class OurTool
 
 	public static synchronized void updateBranchNumber(int n)
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			data.branch_number = n;
@@ -366,7 +385,7 @@ public class OurTool
 
 	public static synchronized void updateBranchOutcome(int br_outcome)
 		{
-			Initialize();
+			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			if (br_outcome == 0) {
