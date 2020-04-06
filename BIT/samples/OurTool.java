@@ -132,10 +132,33 @@ public class OurTool
 			data.dyn_method_count++;
 		}
 	
-	public static void doAlloc(File in_dir, File out_dir) 
+	public static void doAlloc(File in_dir, File out_dir)
 		{
 			String filelist[] = in_dir.list();
+			int k = 0;
+			int total = 0;
 			
+			for (int i = 0; i < filelist.length; i++) {
+				String filename = filelist[i];
+				if (filename.endsWith(".class")) {
+					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
+					ClassInfo ci = new ClassInfo(in_filename);
+
+					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
+						Routine routine = (Routine) e.nextElement();
+						InstructionArray instructions = routine.getInstructionArray();
+						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
+							BasicBlock bb = (BasicBlock) b.nextElement();
+							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
+							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
+							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
+								total++;
+							}
+						}
+					}
+				}
+			}
+
 			for (int i = 0; i < filelist.length; i++) {
 				String filename = filelist[i];
 				if (filename.endsWith(".class")) {
@@ -145,12 +168,34 @@ public class OurTool
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
 		
-						if(routine.getMethodName().equals("solveSudoku"))
+						if(routine.getMethodName().equals("solveSudoku")) {
 							routine.addAfter("OurTool", "printDynamic", "null");
+							routine.addAfter("OurTool", "printLoadStore", "null");
+							routine.addAfter("OurTool", "printAlloc", "null");
+							routine.addAfter("OurTool", "printBranch", "null");
+						}
 						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
-							routine.addBefore("OurTool", "initialize", null);
+							routine.addBefore("OurTool", "initialize", "null");
 						
+						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
+						routine.addBefore("OurTool", "setBranchMethodName", routine.getMethodName());
+
 						InstructionArray instructions = routine.getInstructionArray();
+						
+						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
+							BasicBlock bb = (BasicBlock) b.nextElement();
+							bb.addBefore("OurTool", "dynInstrCount", new Integer(bb.size()));
+							
+							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
+							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
+							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
+								instr.addBefore("OurTool", "setBranchPC", new Integer(instr.getOffset()));
+								instr.addBefore("OurTool", "updateBranchNumber", new Integer(k));
+								instr.addBefore("OurTool", "updateBranchOutcome", "BranchOutcome");
+								k++;
+							}
+						}
+
 		  
 						for (Enumeration instrs = instructions.elements(); instrs.hasMoreElements(); ) {
 							Instruction instr = (Instruction) instrs.nextElement();
@@ -161,8 +206,23 @@ public class OurTool
 								(opcode==InstructionTable.multianewarray)) {
 								instr.addBefore("OurTool", "allocCount", new Integer(opcode));
 							}
+							else if (opcode == InstructionTable.getfield)
+								instr.addBefore("OurTool", "LSFieldCount", new Integer(0));
+							else if (opcode == InstructionTable.putfield)
+								instr.addBefore("OurTool", "LSFieldCount", new Integer(1));
+							else {
+								short instr_type = InstructionTable.InstructionTypeTable[opcode];
+								if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
+									instr.addBefore("OurTool", "LSCount", new Integer(0));
+								}
+								else if (instr_type == InstructionTable.STORE_INSTRUCTION) {
+									instr.addBefore("OurTool", "LSCount", new Integer(1));
+								}
+							}
 						}
 					}
+					ci.addBefore("OurTool", "setBranchClassName", ci.getClassName());
+					ci.addBefore("OurTool", "branchInit", new Integer(total));
 					ci.write(out_filename);
 				}
 			}
@@ -413,92 +473,24 @@ public class OurTool
 			
 	public static void main(String argv[]) 
 		{
-			if (argv.length < 2 || !argv[0].startsWith("-")) {
+			if (argv.length != 2 || argv[0].startsWith("-")) {
 				printUsage();
 			}
-
-			else if (argv[0].equals("-dynamic")) {
-				if (argv.length != 3) {
-					printUsage();
-				}
+	
+			try {
+				File in_dir = new File(argv[0]);
+				File out_dir = new File(argv[1]);
+	
+				if (in_dir.isDirectory() && out_dir.isDirectory()) {
+					doAlloc(in_dir, out_dir);
 				
-				try {
-					File in_dir = new File(argv[1]);
-					File out_dir = new File(argv[2]);
-
-					if (in_dir.isDirectory() && out_dir.isDirectory()) {
-						doDynamic(in_dir, out_dir);
-					}
-					else {
-						printUsage();
-					}
-				}
-				catch (NullPointerException e) {
+				}	
+				else {	
 					printUsage();
 				}
+			} catch (NullPointerException e) {
+				printUsage();
 			}
-			
-			else if (argv[0].equals("-alloc")) {
-				if (argv.length != 3) {
-					printUsage();
-				}
-				
-				try {
-					File in_dir = new File(argv[1]);
-					File out_dir = new File(argv[2]);
-
-					if (in_dir.isDirectory() && out_dir.isDirectory()) {
-						doAlloc(in_dir, out_dir);
-					}
-					else {
-						printUsage();
-					}
-				}
-				catch (NullPointerException e) {
-					printUsage();
-				}
-			}
-			
-			else if (argv[0].equals("-load_store")) {
-				if (argv.length != 3) {
-					printUsage();
-				}
-				
-				try {
-					File in_dir = new File(argv[1]);
-					File out_dir = new File(argv[2]);
-
-					if (in_dir.isDirectory() && out_dir.isDirectory()) {
-						doLoadStore(in_dir, out_dir);
-					}
-					else {
-						printUsage();
-					}
-				}
-				catch (NullPointerException e) {
-					printUsage();
-				}
-			}
-
-			else if (argv[0].equals("-branch")) {
-				if (argv.length != 3) {
-					printUsage();
-				}
-				
-				try {
-					File in_dir = new File(argv[1]);
-					File out_dir = new File(argv[2]);
-
-					if (in_dir.isDirectory() && out_dir.isDirectory()) {
-						doBranch(in_dir, out_dir);
-					}
-					else {
-						printUsage();
-					}
-				}
-				catch (NullPointerException e) {
-					printUsage();
-				}
-			}
+		
 		}
 }
