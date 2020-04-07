@@ -198,10 +198,6 @@ public class WebServer {
 				System.out.println("Error Message: " + ace.getMessage());
 			}
 
-			for (String arg:args){
-				System.out.println(arg);
-			}
-
 			System.out.println("> Sent response to " + t.getRemoteAddress().toString());
 		}
 	}

@@ -55,15 +55,11 @@ public class OurTool
 	private int fieldloadcount = 0;
 	private int fieldstorecount = 0;
 
-	private StatisticsBranch[] branch_info;
-	private int branch_number;
-	private int branch_pc;
-	private String branch_class_name;
-	private String branch_method_name;
+	private int branchtaken;
 
 	}
 
-	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores) {
+	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores, int ninstructions, int branchtaken) {
         Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
         item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
         item.put("allocations", new AttributeValue().withN(Integer.toString(allocations)));
@@ -72,7 +68,8 @@ public class OurTool
         item.put("columns", new AttributeValue().withN(Integer.toString(0)));
         item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
         item.put("Algorithm", new AttributeValue("empty"));
-        
+        item.put("InstructionCount", new AttributeValue().withN(Integer.toString(ninstructions)));
+        item.put("BranchesTaken", new AttributeValue().withN(Integer.toString(branchtaken)));
         return item;
     }
 
@@ -80,12 +77,8 @@ public class OurTool
 
 	public static void printUsage() 
 		{
-			System.out.println("Syntax: java OurTool -stat_type in_path [out_path]");
+			System.out.println("Syntax: java OurTool in_path out_path");
 			System.out.println("        where stat_type can be:");
-			System.out.println("        dynamic:    dynamic properties");
-			System.out.println("        alloc:      memory allocation instructions");
-			System.out.println("        load_store: loads and stores (both field and regular)");
-			System.out.println("        branch:     gathers branch outcome statistics");
 			System.out.println();
 			System.out.println("        in_path:  directory from which the class files are read");
 			System.out.println("        out_path: directory to which the class files are written");
@@ -100,38 +93,6 @@ public class OurTool
 		if(!_data.containsKey(id))
 			_data.put(id, new StatisticsData());
 	}
-
-
-	public static void doDynamic(File in_dir, File out_dir) 
-		{
-			String filelist[] = in_dir.list();
-			
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
-					
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
-					
-						if(routine.getMethodName().equals("solveSudoku"))
-							routine.addAfter("OurTool", "printDynamic", "null");
-						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
-							routine.addBefore("OurTool", "initialize", "null");
-						
-						routine.addBefore("OurTool", "dynMethodCount", new Integer(1));
-                    
-						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-							BasicBlock bb = (BasicBlock) b.nextElement();
-							bb.addBefore("OurTool", "dynInstrCount", new Integer(bb.size()));
-						}
-					}
-					ci.write(out_filename);
-				}
-			}
-		}
 	
     public static synchronized void printDynamic(String foo) 
 		{
@@ -172,32 +133,9 @@ public class OurTool
 			data.dyn_method_count++;
 		}
 	
-	public static void doAlloc(File in_dir, File out_dir)
+	public static void doInstrumentation(File in_dir, File out_dir)
 		{
 			String filelist[] = in_dir.list();
-			int k = 0;
-			int total = 0;
-			
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
-
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
-						InstructionArray instructions = routine.getInstructionArray();
-						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-							BasicBlock bb = (BasicBlock) b.nextElement();
-							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
-							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
-							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
-								total++;
-							}
-						}
-					}
-				}
-			}
 
 			for (int i = 0; i < filelist.length; i++) {
 				String filename = filelist[i];
@@ -218,7 +156,6 @@ public class OurTool
 							routine.addBefore("OurTool", "initialize", "null");
 						
 						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
-						routine.addBefore("OurTool", "setBranchMethodName", routine.getMethodName());
 
 						InstructionArray instructions = routine.getInstructionArray();
 						
@@ -228,12 +165,8 @@ public class OurTool
 							
 							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
 							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
-							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
-								instr.addBefore("OurTool", "setBranchPC", new Integer(instr.getOffset()));
-								instr.addBefore("OurTool", "updateBranchNumber", new Integer(k));
+							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION)
 								instr.addBefore("OurTool", "updateBranchOutcome", "BranchOutcome");
-								k++;
-							}
 						}
 
 		  
@@ -261,8 +194,6 @@ public class OurTool
 							}
 						}
 					}
-					ci.addBefore("OurTool", "setBranchClassName", ci.getClassName());
-					ci.addBefore("OurTool", "branchInit", new Integer(total));
 					ci.write(out_filename);
 				}
 			}
@@ -300,47 +231,6 @@ public class OurTool
 			}
 		}
 	
-	public static void doLoadStore(File in_dir, File out_dir) 
-		{
-			String filelist[] = in_dir.list();
-			
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
-					
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
-						
-						if(routine.getMethodName().equals("solveSudoku"))
-							routine.addAfter("OurTool", "printDynamic", "null");
-						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
-							routine.addBefore("OurTool", "initialize", null);
-						
-						for (Enumeration instrs = (routine.getInstructionArray()).elements(); instrs.hasMoreElements(); ) {
-							Instruction instr = (Instruction) instrs.nextElement();
-							int opcode=instr.getOpcode();
-							if (opcode == InstructionTable.getfield)
-								instr.addBefore("OurTool", "LSFieldCount", new Integer(0));
-							else if (opcode == InstructionTable.putfield)
-								instr.addBefore("OurTool", "LSFieldCount", new Integer(1));
-							else {
-								short instr_type = InstructionTable.InstructionTypeTable[opcode];
-								if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
-									instr.addBefore("OurTool", "LSCount", new Integer(0));
-								}
-								else if (instr_type == InstructionTable.STORE_INSTRUCTION) {
-									instr.addBefore("OurTool", "LSCount", new Integer(1));
-								}
-							}
-						}
-					}
-					ci.write(out_filename);
-				}
-			}	
-		}
 
 	public static synchronized void printLoadStore(String s) 
 		{
@@ -373,127 +263,18 @@ public class OurTool
 			else
 				data.storecount++;
 		}
+
 	
-	public static void doBranch(File in_dir, File out_dir) 
-		{
-			String filelist[] = in_dir.list();
-			int k = 0;
-			int total = 0;
-			
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
-
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
-						InstructionArray instructions = routine.getInstructionArray();
-						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-							BasicBlock bb = (BasicBlock) b.nextElement();
-							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
-							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
-							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
-								total++;
-							}
-						}
-					}
-				}
-			}
-			
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
-
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
-						
-						if(routine.getMethodName().equals("solveSudoku"))
-							routine.addAfter("OurTool", "printDynamic", "null");
-						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
-							routine.addBefore("OurTool", "initialize", null);
-						
-						routine.addBefore("OurTool", "setBranchMethodName", routine.getMethodName());
-						InstructionArray instructions = routine.getInstructionArray();
-						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-							BasicBlock bb = (BasicBlock) b.nextElement();
-							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
-							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
-							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION) {
-								instr.addBefore("OurTool", "setBranchPC", new Integer(instr.getOffset()));
-								instr.addBefore("OurTool", "updateBranchNumber", new Integer(k));
-								instr.addBefore("OurTool", "updateBranchOutcome", "BranchOutcome");
-								k++;
-							}
-						}
-					}
-					ci.addBefore("OurTool", "setBranchClassName", ci.getClassName());
-					ci.addBefore("OurTool", "branchInit", new Integer(total));
-					ci.write(out_filename);
-				}
-			}	
-		}
-
-	public static synchronized void setBranchClassName(String name)
-		{
-			
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			
-			data.branch_class_name = name;
-		}
-
-	public static synchronized void setBranchMethodName(String name) 
-		{
-			
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			
-			data.branch_method_name = name;
-		}
-	
-	public static synchronized void setBranchPC(int pc)
-		{
-			
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			
-			data.branch_pc = pc;
-		}
-	
-	public static synchronized void branchInit(int n) 
-		{
-			
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			
-			if (data.branch_info == null) {
-				data.branch_info = new StatisticsBranch[n];
-			}
-		}
-
-	public static synchronized void updateBranchNumber(int n)
-		{
-			
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			
-			data.branch_number = n;
-			
-			if (data.branch_info[data.branch_number] == null) {
-				data.branch_info[data.branch_number] = new StatisticsBranch(data.branch_class_name, data.branch_method_name, data.branch_pc);
-			}
-		}
 
 	public static synchronized void updateBranchOutcome(int br_outcome)
 		{
 			
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
-			if (br_outcome == 0) {
-				data.branch_info[data.branch_number].incrNotTaken();
-			}
-			else {
-				data.branch_info[data.branch_number].incrTaken();
-			}
+			if (br_outcome != 0)
+				data.branchtaken++;
+			
+			
 		}
 
 	public static synchronized void printBranch(String foo)
@@ -501,17 +282,14 @@ public class OurTool
 			StatisticsData data = _data.get(Thread.currentThread().getId());
 			
 			System.out.println("Branch summary:");
-			System.out.println("CLASS NAME" + '\t' + "METHOD" + '\t' + "PC" + '\t' + "TAKEN" + '\t' + "NOT_TAKEN");
+			System.out.println("Branches taken: " + data.branchtaken);
 			
-			for (int i = 0; i < data.branch_info.length; i++) {
-				if (data.branch_info[i] != null) {
-					data.branch_info[i].print();
-				}
-			}
 
         int allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
         long threadId = Thread.currentThread().getId();
         int loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
+	int ninstructions = data.dyn_instr_count;
+	int branchtaken = data.branchtaken;
 
         try{
             AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
@@ -528,7 +306,7 @@ public class OurTool
             TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
             TableUtils.waitUntilActive(dynamoDB, tableName);
     
-            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores);
+            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken);
             PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
             PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
@@ -563,7 +341,7 @@ public class OurTool
 				File out_dir = new File(argv[1]);
 	
 				if (in_dir.isDirectory() && out_dir.isDirectory()) {
-					doAlloc(in_dir, out_dir);
+					doInstrumentation(in_dir, out_dir);
 				
 				}	
 				else {	
