@@ -1,2 +1,2 @@
-export CLASSPATH=%CLASSPATH%:/home/joaop/Desktop/cnv/instrumented:/home/joaop/Desktop/cnv/project:/home/joaop/Desktop/cnv/BIT:/home/joaop/Desktop/cnv/BIT/samples:/home/joaop/Desktop/cnv/aws-java-sdk-1.11.759/lib/aws-java-sdk-1.11.759.jar:/home/joaop/Desktop/cnv/aws-java-sdk-1.11.759/third-party/lib/*:.
+export CLASSPATH=%CLASSPATH%:~/Desktop/cnv/instrumented:~/Desktop/cnv/project:~/Desktop/cnv/BIT:~/Desktop/cnv/BIT/samples:~/Desktop/cnv/aws-java-sdk-1.11.759/lib/aws-java-sdk-1.11.759.jar:~/Desktop/cnv/aws-java-sdk-1.11.759/third-party/lib/*:.
 
