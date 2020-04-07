@@ -71,7 +71,7 @@ public class OurTool
         item.put("lines", new AttributeValue().withN(Integer.toString(0)));
         item.put("columns", new AttributeValue().withN(Integer.toString(0)));
         item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
-        item.put("Algorithm", new AttributeValue().withNULL(true));
+        item.put("Algorithm", new AttributeValue("empty"));
         
         return item;
     }
@@ -515,7 +515,7 @@ public class OurTool
 
         try{
             AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration("http://localhost:8042", "eu-west-1"))
+                new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
                 .build();
     
             String tableName = "requests_data";
@@ -531,16 +531,6 @@ public class OurTool
             Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores);
             PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
             PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
-
-            // Scan items for data where thread id >=1
-            HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
-            Condition condition = new Condition()
-                .withComparisonOperator(ComparisonOperator.GE.toString())
-                .withAttributeValueList(new AttributeValue("1"));
-            scanFilter.put("ThreadId", condition);
-            ScanRequest scanRequest = new ScanRequest(tableName).withScanFilter(scanFilter);
-            ScanResult scanResult = dynamoDB.scan(scanRequest);
-            System.out.println("Result: " + scanResult);
 
         } catch (AmazonServiceException ase) {
             System.out.println("Caught an AmazonServiceException, which means your request made it "

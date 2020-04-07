@@ -18,6 +18,42 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
+import com.amazonaws.services.dynamodbv2.model.Condition;
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeyType;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.amazonaws.services.dynamodbv2.model.ScanResult;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import com.amazonaws.services.dynamodbv2.util.TableUtils;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
+import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
+import com.amazonaws.services.dynamodbv2.model.AttributeAction; 
+
+
 public class WebServer {
 
 	public static void main(final String[] args) throws Exception {
@@ -120,6 +156,51 @@ public class WebServer {
             osw.close();
 
 			os.close();
+
+
+			try{
+				AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
+					new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
+					.build();
+
+				Map<String, AttributeValue> item_key = new HashMap<String, AttributeValue>();
+				item_key.put("ThreadId",new AttributeValue(Long.toString(Thread.currentThread().getId())));
+
+				Map<String, AttributeValueUpdate> expressionAttributeValues = new HashMap<String, AttributeValueUpdate>();
+				expressionAttributeValues.put("lines", new AttributeValueUpdate(new AttributeValue().withN(args[5]),AttributeAction.PUT));  // update lines
+				expressionAttributeValues.put("columns", new AttributeValueUpdate(new AttributeValue().withN(args[7]),AttributeAction.PUT));  // update columns
+				expressionAttributeValues.put("Unassigned", new AttributeValueUpdate(new AttributeValue().withN(args[3]),AttributeAction.PUT));  // update unassigned
+				expressionAttributeValues.put("Algorithm", new AttributeValueUpdate(new AttributeValue(args[1]),AttributeAction.PUT));  // update algorithm
+
+				client.updateItem("requests_data",item_key,expressionAttributeValues);
+
+				HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+				Condition condition = new Condition()
+					.withComparisonOperator(ComparisonOperator.GE.toString())
+					.withAttributeValueList(new AttributeValue("1"));
+				scanFilter.put("ThreadId", condition);
+				ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
+				ScanResult scanResult = client.scan(scanRequest);
+				System.out.println("Result: " + scanResult);
+			}
+			catch (AmazonServiceException ase) {
+				System.out.println("Caught an AmazonServiceException, which means your request made it "
+						+ "to AWS, but was rejected with an error response for some reason.");
+				System.out.println("Error Message:    " + ase.getMessage());
+				System.out.println("HTTP Status Code: " + ase.getStatusCode());
+				System.out.println("AWS Error Code:   " + ase.getErrorCode());
+				System.out.println("Error Type:       " + ase.getErrorType());
+				System.out.println("Request ID:       " + ase.getRequestId());
+			} catch (AmazonClientException ace) {
+				System.out.println("Caught an AmazonClientException, which means the client encountered "
+						+ "a serious internal problem while trying to communicate with AWS, "
+						+ "such as not being able to access the network.");
+				System.out.println("Error Message: " + ace.getMessage());
+			}
+
+			for (String arg:args){
+				System.out.println(arg);
+			}
 
 			System.out.println("> Sent response to " + t.getRemoteAddress().toString());
 		}
