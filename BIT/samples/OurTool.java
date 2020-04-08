@@ -89,7 +89,6 @@ public class OurTool
 
 	public static void initialize(String dummy) {
 		long id = Thread.currentThread().getId();
-
 		if(!_data.containsKey(id))
 			_data.put(id, new StatisticsData());
 	}
@@ -152,7 +151,7 @@ public class OurTool
 							routine.addAfter("OurTool", "printAlloc", "null");
 							routine.addAfter("OurTool", "printBranch", "null");
 						}
-						else if(routine.getMethodName().equals("main") || routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("<init>") || routine.getMethodName().equals("<clinit>"))
+						else if(routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("main"))
 							routine.addBefore("OurTool", "initialize", "null");
 						
 						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
