@@ -88,10 +88,7 @@ public class OurTool
 		}
 
 	public static void initialize(String dummy) {
-		System.out.println("I am here");
-		long id = Thread.currentThread().getId();
-		if(!_data.containsKey(id))
-			_data.put(id, new StatisticsData());
+		_data.put(Thread.currentThread().getId(), new StatisticsData());
 	}
 	
     public static synchronized void printDynamic(String foo) 
@@ -144,7 +141,7 @@ public class OurTool
 					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					ClassInfo ci = new ClassInfo(in_filename);
 
-					if(ci.getClassName().equals("pt/ulisboa/tecnico/cnv/solver/SolverArgumentParser"))
+					if(ci.getClassName().matches(".*SolverArgumentParser"))
 						ci.addBefore("OurTool", "initialize", "null");
 
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
@@ -156,6 +153,8 @@ public class OurTool
 							routine.addAfter("OurTool", "printAlloc", "null");
 							routine.addAfter("OurTool", "printBranch", "null");
 						}
+						else if(routine.getMethodName().equals("main"))
+							routine.addBefore("OurTool", "initialize", "null");
 						
 						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
 
