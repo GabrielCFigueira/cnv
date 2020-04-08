@@ -1,0 +1,1 @@
+sudo docker run -d -p 8043:8000 amazon/dynamodb-local

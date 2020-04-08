@@ -88,6 +88,7 @@ public class OurTool
 		}
 
 	public static void initialize(String dummy) {
+		System.out.println("I am here");
 		long id = Thread.currentThread().getId();
 		if(!_data.containsKey(id))
 			_data.put(id, new StatisticsData());
@@ -142,17 +143,19 @@ public class OurTool
 					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
 					ClassInfo ci = new ClassInfo(in_filename);
+
+					if(ci.getClassName().equals("pt/ulisboa/tecnico/cnv/solver/SolverArgumentParser"))
+						ci.addBefore("OurTool", "initialize", "null");
+
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
-		
+
 						if(routine.getMethodName().equals("solveSudoku")) {
 							routine.addAfter("OurTool", "printDynamic", "null");
 							routine.addAfter("OurTool", "printLoadStore", "null");
 							routine.addAfter("OurTool", "printAlloc", "null");
 							routine.addAfter("OurTool", "printBranch", "null");
 						}
-						else if(routine.getMethodName().equals("SolverArgumentParser") || routine.getMethodName().equals("main"))
-							routine.addBefore("OurTool", "initialize", "null");
 						
 						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
 
