@@ -1,3 +1,4 @@
 BIT/samples/*.class
+instrumented/*
 *.log
 *.swp
