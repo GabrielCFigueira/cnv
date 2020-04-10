@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Iterator;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
@@ -52,6 +53,11 @@ import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
 import com.amazonaws.services.dynamodbv2.model.AttributeAction; 
+import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
+import com.amazonaws.services.dynamodbv2.document.ItemCollection;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 
 
 public class WebServer {
@@ -162,9 +168,30 @@ public class WebServer {
 				AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
 					new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
 					.build();
+				DynamoDB dynamoDB = new DynamoDB(client);
 
+				//Query for the greatest requestId for the thread
+				Table table = dynamoDB.getTable("requests_data");
+				QuerySpec spec = new QuerySpec().withKeyConditionExpression("ThreadId = :t_id and RequestId > :r_id").withValueMap(new ValueMap()
+									.withString(":t_id",Long.toString(Thread.currentThread().getId())).withNumber(":r_id",0))
+									.withScanIndexForward(false);
+
+				ItemCollection<QueryOutcome> items = table.query(spec);
+
+				Iterator<Item> iterator = items.iterator();
+				Item item = null;
+				int highestRequestId = 0; 
+				while (iterator.hasNext()){
+					item = iterator.next();
+					highestRequestId = Integer.parseInt(item.getString("RequestId"));
+					System.out.println("Id:" + highestRequestId);
+					break;
+				}
+
+				//Update the entry with the requestId and threadId
 				Map<String, AttributeValue> item_key = new HashMap<String, AttributeValue>();
 				item_key.put("ThreadId",new AttributeValue(Long.toString(Thread.currentThread().getId())));
+				item_key.put("RequestId",new AttributeValue().withN(Integer.toString(highestRequestId)));
 
 				Map<String, AttributeValueUpdate> expressionAttributeValues = new HashMap<String, AttributeValueUpdate>();
 				expressionAttributeValues.put("lines", new AttributeValueUpdate(new AttributeValue().withN(args[5]),AttributeAction.PUT));  // update lines
@@ -174,6 +201,7 @@ public class WebServer {
 
 				client.updateItem("requests_data",item_key,expressionAttributeValues);
 
+				//Scan for the tables data
 				HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
 				Condition condition = new Condition()
 					.withComparisonOperator(ComparisonOperator.GE.toString())

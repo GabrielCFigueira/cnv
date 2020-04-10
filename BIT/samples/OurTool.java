@@ -6,6 +6,7 @@ import java.util.Vector;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,6 +42,8 @@ public class OurTool
 
 	private static class StatisticsData {
 
+	private int currentRequestId = 0;
+
 	private int dyn_method_count = 0;
 	private int dyn_bb_count = 0;
 	private int dyn_instr_count = 0;
@@ -59,36 +62,40 @@ public class OurTool
 
 	}
 
-	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores, int ninstructions, int branchtaken) {
-        Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-        item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
-        item.put("allocations", new AttributeValue().withN(Integer.toString(allocations)));
-        item.put("loadsStores", new AttributeValue().withN(Integer.toString(loadsStores)));
-        item.put("lines", new AttributeValue().withN(Integer.toString(0)));
-        item.put("columns", new AttributeValue().withN(Integer.toString(0)));
-        item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
-        item.put("Algorithm", new AttributeValue("empty"));
-        item.put("InstructionCount", new AttributeValue().withN(Integer.toString(ninstructions)));
-        item.put("BranchesTaken", new AttributeValue().withN(Integer.toString(branchtaken)));
-        return item;
-    }
+	static AtomicInteger globalRequestId = new AtomicInteger();
+
+	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores,
+			int ninstructions, int branchtaken, int requestId) {
+		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+		item.put("RequestId", new AttributeValue().withN(Integer.toString(requestId)));
+		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
+		item.put("allocations", new AttributeValue().withN(Integer.toString(allocations)));
+		item.put("loadsStores", new AttributeValue().withN(Integer.toString(loadsStores)));
+		item.put("lines", new AttributeValue().withN(Integer.toString(0)));
+		item.put("columns", new AttributeValue().withN(Integer.toString(0)));
+		item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
+		item.put("Algorithm", new AttributeValue("empty"));
+		item.put("InstructionCount", new AttributeValue().withN(Integer.toString(ninstructions)));
+		item.put("BranchesTaken", new AttributeValue().withN(Integer.toString(branchtaken)));
+		return item;
+	}
 
 	private static ConcurrentMap<Long, StatisticsData> _data = new ConcurrentHashMap<Long, StatisticsData>();
 
-	public static void printUsage() 
-		{
-			System.out.println("Syntax: java OurTool in_path out_path");
-			System.out.println("        where stat_type can be:");
-			System.out.println();
-			System.out.println("        in_path:  directory from which the class files are read");
-			System.out.println("        out_path: directory to which the class files are written");
-			System.out.println("        Both in_path and out_path are required unless stat_type is static");
-			System.out.println("        in which case only in_path is required");
-			System.exit(-1);
-		}
+	public static void printUsage() {
+		System.out.println("Syntax: java OurTool in_path out_path");
+		System.out.println("        where stat_type can be:");
+		System.out.println();
+		System.out.println("        in_path:  directory from which the class files are read");
+		System.out.println("        out_path: directory to which the class files are written");
+		System.out.println("        Both in_path and out_path are required unless stat_type is static");
+		System.out.println("        in which case only in_path is required");
+		System.exit(-1);
+	}
 
 	public static void initialize(String dummy) {
 		_data.put(Thread.currentThread().getId(), new StatisticsData());
+		_data.get(Thread.currentThread().getId()).currentRequestId = globalRequestId.incrementAndGet();
 	}
 	
     public static synchronized void printDynamic(String foo) 
@@ -289,8 +296,9 @@ public class OurTool
         int allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
         long threadId = Thread.currentThread().getId();
         int loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
-	int ninstructions = data.dyn_instr_count;
-	int branchtaken = data.branchtaken;
+		int ninstructions = data.dyn_instr_count;
+		int branchtaken = data.branchtaken;
+		int requestId = data.currentRequestId;
 
         try{
             AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
@@ -300,14 +308,14 @@ public class OurTool
             String tableName = "requests_data";
 
             CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-                .withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH))
-                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S))
+                .withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH), new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.RANGE))
+                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S), new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.N))
                 .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
     
             TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
             TableUtils.waitUntilActive(dynamoDB, tableName);
     
-            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken);
+            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken,requestId);
             PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
             PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
