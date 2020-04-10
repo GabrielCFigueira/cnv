@@ -44,39 +44,39 @@ public class OurTool
 
 	private int currentRequestId = 0;
 
-	private int dyn_method_count = 0;
-	private int dyn_bb_count = 0;
-	private int dyn_instr_count = 0;
+	private long dyn_method_count = 0;
+	private long dyn_bb_count = 0;
+	private long dyn_instr_count = 0;
 	
-	private int newcount = 0;
-	private int newarraycount = 0;
-	private int anewarraycount = 0;
-	private int multianewarraycount = 0;
+	private long newcount = 0;
+	private long newarraycount = 0;
+	private long anewarraycount = 0;
+	private long multianewarraycount = 0;
 
-	private int loadcount = 0;
-	private int storecount = 0;
-	private int fieldloadcount = 0;
-	private int fieldstorecount = 0;
+	private long loadcount = 0;
+	private long storecount = 0;
+	private long fieldloadcount = 0;
+	private long fieldstorecount = 0;
 
-	private int branchtaken;
+	private long branchtaken = 0;
 
 	}
 
 	static AtomicInteger globalRequestId = new AtomicInteger();
 
-	private static Map<String, AttributeValue> newItem(long threadId, int allocations, int loadsStores,
-			int ninstructions, int branchtaken, int requestId) {
+	private static Map<String, AttributeValue> newItem(long threadId, long allocations, long loadsStores,
+			long ninstructions, long branchtaken, int requestId) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue().withN(Integer.toString(requestId)));
 		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
-		item.put("allocations", new AttributeValue().withN(Integer.toString(allocations)));
-		item.put("loadsStores", new AttributeValue().withN(Integer.toString(loadsStores)));
-		item.put("lines", new AttributeValue().withN(Integer.toString(0)));
-		item.put("columns", new AttributeValue().withN(Integer.toString(0)));
-		item.put("Unassigned", new AttributeValue().withN(Integer.toString(0)));
+		item.put("allocations", new AttributeValue().withN(Long.toString(allocations)));
+		item.put("loadsStores", new AttributeValue().withN(Long.toString(loadsStores)));
+		item.put("lines", new AttributeValue().withN(Long.toString(0)));
+		item.put("columns", new AttributeValue().withN(Long.toString(0)));
+		item.put("Unassigned", new AttributeValue().withN(Long.toString(0)));
 		item.put("Algorithm", new AttributeValue("empty"));
-		item.put("InstructionCount", new AttributeValue().withN(Integer.toString(ninstructions)));
-		item.put("BranchesTaken", new AttributeValue().withN(Integer.toString(branchtaken)));
+		item.put("InstructionCount", new AttributeValue().withN(Long.toString(ninstructions)));
+		item.put("BranchesTaken", new AttributeValue().withN(Long.toString(branchtaken)));
 		return item;
 	}
 
@@ -293,12 +293,12 @@ public class OurTool
 			System.out.println("Branches taken: " + data.branchtaken);
 			
 
-        int allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
+        long allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
         long threadId = Thread.currentThread().getId();
-        int loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
-		int ninstructions = data.dyn_instr_count;
-		int branchtaken = data.branchtaken;
-		int requestId = data.currentRequestId;
+        long loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
+	long ninstructions = data.dyn_instr_count;
+	long branchtaken = data.branchtaken;
+	int requestId = data.currentRequestId;
 
         try{
             AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
