@@ -175,18 +175,14 @@ public class WebServer {
 				QuerySpec spec = new QuerySpec().withKeyConditionExpression("ThreadId = :t_id and RequestId > :r_id").withValueMap(new ValueMap()
 									.withString(":t_id",Long.toString(Thread.currentThread().getId())).withNumber(":r_id",0))
 									.withScanIndexForward(false);
+									
+				spec.setMaxResultSize(1);
 
 				ItemCollection<QueryOutcome> items = table.query(spec);
 
 				Iterator<Item> iterator = items.iterator();
 				Item item = null;
-				int highestRequestId = 0; 
-				while (iterator.hasNext()){
-					item = iterator.next();
-					highestRequestId = Integer.parseInt(item.getString("RequestId"));
-					System.out.println("Id:" + highestRequestId);
-					break;
-				}
+				int highestRequestId = Integer.parseInt(iterator.next().getString("RequestId"));
 
 				//Update the entry with the requestId and threadId
 				Map<String, AttributeValue> item_key = new HashMap<String, AttributeValue>();
