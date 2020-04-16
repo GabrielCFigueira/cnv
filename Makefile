@@ -8,9 +8,9 @@ SDK_HOME=/usr/lib/jvm/java-7-openjdk-amd64/
 #_JAVA_OPTIONS='-XX:-UseSplitVerifier'
 
 all:
-	(cd BIT/samples; javac  *.java)
+	(cd BIT/BIT; javac OurTool.java)
 	(cd project/pt/ulisboa/tecnico/cnv/server; javac WebServer.java)
-	(java -XX:-UseSplitVerifier OurTool project/pt/ulisboa/tecnico/cnv/solver/ instrumented/pt/ulisboa/tecnico/cnv/solver)
+	(java -XX:-UseSplitVerifier BIT/OurTool project/pt/ulisboa/tecnico/cnv/solver/ instrumented/pt/ulisboa/tecnico/cnv/solver)
 
 run:
 	(java -XX:-UseSplitVerifier pt.ulisboa.tecnico.cnv.server.WebServer)
