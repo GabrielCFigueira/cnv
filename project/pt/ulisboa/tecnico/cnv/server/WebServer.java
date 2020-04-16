@@ -1,5 +1,7 @@
 package pt.ulisboa.tecnico.cnv.server;
 
+import BIT.*;
+
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -61,6 +63,22 @@ import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 
 
 public class WebServer {
+
+	private static Map<String, AttributeValue> newItem(long threadId, String allocations, String loadsStores,
+		String ninstructions, String branchtaken, String requestId, String lines, String columns, String unassigned, String algorithm) {
+		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+		item.put("RequestId", new AttributeValue().withN(requestId));
+		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
+		item.put("allocations", new AttributeValue().withN(allocations));
+		item.put("loadsStores", new AttributeValue().withN(loadsStores));
+		item.put("lines", new AttributeValue().withN(lines));
+		item.put("columns", new AttributeValue().withN(columns));
+		item.put("Unassigned", new AttributeValue().withN(unassigned));
+		item.put("Algorithm", new AttributeValue(algorithm));
+		item.put("InstructionCount", new AttributeValue().withN(ninstructions));
+		item.put("BranchesTaken", new AttributeValue().withN(branchtaken));
+		return item;
+	}
 
 	public static void main(final String[] args) throws Exception {
 
@@ -133,6 +151,24 @@ public class WebServer {
 			// Create solver instance from factory.
 			final Solver s = SolverFactory.getInstance().makeSolver(ap);
 
+			final long threadId = Thread.currentThread().getId();
+			//Start a pending thread to continuously update the data of a request
+			Thread thread = new Thread(){
+				public void run(){
+					try{
+						while(!OurTool.hasTaskFinished(threadId)){
+							Thread.sleep(3000);
+							UpdateDatabase(args[5],args[7],args[3],args[1],threadId);
+						}
+					}
+					catch(InterruptedException e){
+						e.printStackTrace();
+					}
+				}
+			  };
+			
+			  thread.start();
+
 			//Solve sudoku puzzle
 			JSONArray solution = s.solveSudoku();
 
@@ -162,67 +198,68 @@ public class WebServer {
             osw.close();
 
 			os.close();
-
-
-			try{
-				AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
-					new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
-					.build();
-				DynamoDB dynamoDB = new DynamoDB(client);
-
-				//Query for the greatest requestId for the thread
-				Table table = dynamoDB.getTable("requests_data");
-				QuerySpec spec = new QuerySpec().withKeyConditionExpression("ThreadId = :t_id and RequestId > :r_id").withValueMap(new ValueMap()
-									.withString(":t_id",Long.toString(Thread.currentThread().getId())).withNumber(":r_id",0))
-									.withScanIndexForward(false);
-									
-				spec.setMaxResultSize(1);
-
-				ItemCollection<QueryOutcome> items = table.query(spec);
-
-				Iterator<Item> iterator = items.iterator();
-				Item item = null;
-				int highestRequestId = Integer.parseInt(iterator.next().getString("RequestId"));
-
-				//Update the entry with the requestId and threadId
-				Map<String, AttributeValue> item_key = new HashMap<String, AttributeValue>();
-				item_key.put("ThreadId",new AttributeValue(Long.toString(Thread.currentThread().getId())));
-				item_key.put("RequestId",new AttributeValue().withN(Integer.toString(highestRequestId)));
-
-				Map<String, AttributeValueUpdate> expressionAttributeValues = new HashMap<String, AttributeValueUpdate>();
-				expressionAttributeValues.put("lines", new AttributeValueUpdate(new AttributeValue().withN(args[5]),AttributeAction.PUT));  // update lines
-				expressionAttributeValues.put("columns", new AttributeValueUpdate(new AttributeValue().withN(args[7]),AttributeAction.PUT));  // update columns
-				expressionAttributeValues.put("Unassigned", new AttributeValueUpdate(new AttributeValue().withN(args[3]),AttributeAction.PUT));  // update unassigned
-				expressionAttributeValues.put("Algorithm", new AttributeValueUpdate(new AttributeValue(args[1]),AttributeAction.PUT));  // update algorithm
-
-				client.updateItem("requests_data",item_key,expressionAttributeValues);
-
-				//Scan for the tables data
-				HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
-				Condition condition = new Condition()
-					.withComparisonOperator(ComparisonOperator.GE.toString())
-					.withAttributeValueList(new AttributeValue("1"));
-				scanFilter.put("ThreadId", condition);
-				ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
-				ScanResult scanResult = client.scan(scanRequest);
-				System.out.println("Result: " + scanResult);
-			}
-			catch (AmazonServiceException ase) {
-				System.out.println("Caught an AmazonServiceException, which means your request made it "
-						+ "to AWS, but was rejected with an error response for some reason.");
-				System.out.println("Error Message:    " + ase.getMessage());
-				System.out.println("HTTP Status Code: " + ase.getStatusCode());
-				System.out.println("AWS Error Code:   " + ase.getErrorCode());
-				System.out.println("Error Type:       " + ase.getErrorType());
-				System.out.println("Request ID:       " + ase.getRequestId());
-			} catch (AmazonClientException ace) {
-				System.out.println("Caught an AmazonClientException, which means the client encountered "
-						+ "a serious internal problem while trying to communicate with AWS, "
-						+ "such as not being able to access the network.");
-				System.out.println("Error Message: " + ace.getMessage());
-			}
-
+			
 			System.out.println("> Sent response to " + t.getRemoteAddress().toString());
+		}
+	}
+
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId){
+		String myData = OurTool.getStatisticsData(threadId);
+		System.out.println(myData);
+		String[] statsArgs = myData.split("_");
+
+		//Arguments
+		String allocations = statsArgs[0];
+		String loadsStores = statsArgs[1];
+		String ninstructions = statsArgs[2];
+		String branchtaken = statsArgs[3];
+		String requestId = statsArgs[4];
+
+		try{
+			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
+				new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
+				.build();
+	
+			String tableName = "requests_data";
+
+			CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
+				.withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH), new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.RANGE))
+				.withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S), new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.N))
+				.withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+	
+			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
+			TableUtils.waitUntilActive(dynamoDB, tableName);
+	
+			Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken,requestId,lines,columns,unassigned,algorithm);
+			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
+			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
+
+			//Scan for the tables data
+			HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
+			Condition condition = new Condition()
+				.withComparisonOperator(ComparisonOperator.GE.toString())
+				.withAttributeValueList(new AttributeValue("1"));
+			scanFilter.put("ThreadId", condition);
+			ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
+			ScanResult scanResult = dynamoDB.scan(scanRequest);
+			System.out.println("Result: " + scanResult);
+
+		} catch (AmazonServiceException ase) {
+			System.out.println("Caught an AmazonServiceException, which means your request made it "
+					+ "to AWS, but was rejected with an error response for some reason.");
+			System.out.println("Error Message:    " + ase.getMessage());
+			System.out.println("HTTP Status Code: " + ase.getStatusCode());
+			System.out.println("AWS Error Code:   " + ase.getErrorCode());
+			System.out.println("Error Type:       " + ase.getErrorType());
+			System.out.println("Request ID:       " + ase.getRequestId());
+		} catch (AmazonClientException ace) {
+			System.out.println("Caught an AmazonClientException, which means the client encountered "
+					+ "a serious internal problem while trying to communicate with AWS, "
+					+ "such as not being able to access the network.");
+			System.out.println("Error Message: " + ace.getMessage());
+		}
+		catch(InterruptedException e){
+			System.out.println("It may have been interrupted");
 		}
 	}
 }

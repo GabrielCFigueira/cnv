@@ -1,3 +1,4 @@
+package BIT;
 
 import BIT.highBIT.*;
 import java.io.File;
@@ -59,26 +60,28 @@ public class OurTool
 	private long fieldstorecount = 0;
 
 	private long branchtaken = 0;
+	private boolean isItFinished = false;
 
+	}
+
+	public static synchronized String getStatisticsData(long threadId){
+		StatisticsData data = _data.get(threadId);
+
+		long allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
+		long loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
+		long ninstructions = data.dyn_instr_count;
+		long branchtaken = data.branchtaken;
+		int requestId = data.currentRequestId;
+		boolean isItFinished = data.isItFinished;
+		String arguments = ""+ allocations + "_" + loadsStores + "_" + ninstructions + "_" + branchtaken + "_" + requestId;
+		return arguments;
+	} 
+
+	public static synchronized boolean hasTaskFinished(long threadId){
+		return _data.get(threadId).isItFinished;
 	}
 
 	static AtomicInteger globalRequestId = new AtomicInteger();
-
-	private static Map<String, AttributeValue> newItem(long threadId, long allocations, long loadsStores,
-			long ninstructions, long branchtaken, int requestId) {
-		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-		item.put("RequestId", new AttributeValue().withN(Integer.toString(requestId)));
-		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
-		item.put("allocations", new AttributeValue().withN(Long.toString(allocations)));
-		item.put("loadsStores", new AttributeValue().withN(Long.toString(loadsStores)));
-		item.put("lines", new AttributeValue().withN(Long.toString(0)));
-		item.put("columns", new AttributeValue().withN(Long.toString(0)));
-		item.put("Unassigned", new AttributeValue().withN(Long.toString(0)));
-		item.put("Algorithm", new AttributeValue("empty"));
-		item.put("InstructionCount", new AttributeValue().withN(Long.toString(ninstructions)));
-		item.put("BranchesTaken", new AttributeValue().withN(Long.toString(branchtaken)));
-		return item;
-	}
 
 	private static ConcurrentMap<Long, StatisticsData> _data = new ConcurrentHashMap<Long, StatisticsData>();
 
@@ -149,32 +152,32 @@ public class OurTool
 					ClassInfo ci = new ClassInfo(in_filename);
 
 					if(ci.getClassName().matches(".*SolverArgumentParser"))
-						ci.addBefore("OurTool", "initialize", "null");
+						ci.addBefore("BIT/OurTool", "initialize", "null");
 
 					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
 						Routine routine = (Routine) e.nextElement();
 
 						if(routine.getMethodName().equals("solveSudoku")) {
-							routine.addAfter("OurTool", "printDynamic", "null");
-							routine.addAfter("OurTool", "printLoadStore", "null");
-							routine.addAfter("OurTool", "printAlloc", "null");
-							routine.addAfter("OurTool", "printBranch", "null");
+							routine.addAfter("BIT/OurTool", "printDynamic", "null");
+							routine.addAfter("BIT/OurTool", "printLoadStore", "null");
+							routine.addAfter("BIT/OurTool", "printAlloc", "null");
+							routine.addAfter("BIT/OurTool", "printBranch", "null");
 						}
 						else if(routine.getMethodName().equals("main"))
-							routine.addBefore("OurTool", "initialize", "null");
+							routine.addBefore("BIT/OurTool", "initialize", "null");
 						
-						routine.addBefore("OurTool", "dynMethodCount", new Integer(1)); 
+						routine.addBefore("BIT/OurTool", "dynMethodCount", new Integer(1)); 
 
 						InstructionArray instructions = routine.getInstructionArray();
 						
 						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
 							BasicBlock bb = (BasicBlock) b.nextElement();
-							bb.addBefore("OurTool", "dynInstrCount", new Integer(bb.size()));
+							bb.addBefore("BIT/OurTool", "dynInstrCount", new Integer(bb.size()));
 							
 							Instruction instr = (Instruction) instructions.elementAt(bb.getEndAddress());
 							short instr_type = InstructionTable.InstructionTypeTable[instr.getOpcode()];
 							if (instr_type == InstructionTable.CONDITIONAL_INSTRUCTION)
-								instr.addBefore("OurTool", "updateBranchOutcome", "BranchOutcome");
+								instr.addBefore("BIT/OurTool", "updateBranchOutcome", "BranchOutcome");
 						}
 
 		  
@@ -185,19 +188,19 @@ public class OurTool
 								(opcode==InstructionTable.newarray) ||
 								(opcode==InstructionTable.anewarray) ||
 								(opcode==InstructionTable.multianewarray)) {
-								instr.addBefore("OurTool", "allocCount", new Integer(opcode));
+								instr.addBefore("BIT/OurTool", "allocCount", new Integer(opcode));
 							}
 							else if (opcode == InstructionTable.getfield)
-								instr.addBefore("OurTool", "LSFieldCount", new Integer(0));
+								instr.addBefore("BIT/OurTool", "LSFieldCount", new Integer(0));
 							else if (opcode == InstructionTable.putfield)
-								instr.addBefore("OurTool", "LSFieldCount", new Integer(1));
+								instr.addBefore("BIT/OurTool", "LSFieldCount", new Integer(1));
 							else {
 								short instr_type = InstructionTable.InstructionTypeTable[opcode];
 								if (instr_type == InstructionTable.LOAD_INSTRUCTION) {
-									instr.addBefore("OurTool", "LSCount", new Integer(0));
+									instr.addBefore("BIT/OurTool", "LSCount", new Integer(0));
 								}
 								else if (instr_type == InstructionTable.STORE_INSTRUCTION) {
-									instr.addBefore("OurTool", "LSCount", new Integer(1));
+									instr.addBefore("BIT/OurTool", "LSCount", new Integer(1));
 								}
 							}
 						}
@@ -291,51 +294,7 @@ public class OurTool
 			
 			System.out.println("Branch summary:");
 			System.out.println("Branches taken: " + data.branchtaken);
-			
-
-        long allocations = data.newcount + data.newarraycount + data.anewarraycount + data.multianewarraycount;
-        long threadId = Thread.currentThread().getId();
-        long loadsStores = data.storecount + data.fieldstorecount + data.loadcount + data.fieldloadcount;
-	long ninstructions = data.dyn_instr_count;
-	long branchtaken = data.branchtaken;
-	int requestId = data.currentRequestId;
-
-        try{
-            AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
-                new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
-                .build();
-    
-            String tableName = "requests_data";
-
-            CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-                .withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH), new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.RANGE))
-                .withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S), new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.N))
-                .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
-    
-            TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
-            TableUtils.waitUntilActive(dynamoDB, tableName);
-    
-            Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken,requestId);
-            PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
-            PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
-
-        } catch (AmazonServiceException ase) {
-            System.out.println("Caught an AmazonServiceException, which means your request made it "
-                    + "to AWS, but was rejected with an error response for some reason.");
-            System.out.println("Error Message:    " + ase.getMessage());
-            System.out.println("HTTP Status Code: " + ase.getStatusCode());
-            System.out.println("AWS Error Code:   " + ase.getErrorCode());
-            System.out.println("Error Type:       " + ase.getErrorType());
-            System.out.println("Request ID:       " + ase.getRequestId());
-        } catch (AmazonClientException ace) {
-            System.out.println("Caught an AmazonClientException, which means the client encountered "
-                    + "a serious internal problem while trying to communicate with AWS, "
-                    + "such as not being able to access the network.");
-            System.out.println("Error Message: " + ace.getMessage());
-        }
-        catch(InterruptedException e){
-			System.out.println("It may have been interrupted");
-        }
+			data.isItFinished = true;
 		}
 	
 			
