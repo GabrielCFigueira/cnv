@@ -64,19 +64,15 @@ import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 
 public class WebServer {
 
-	private static Map<String, AttributeValue> newItem(long threadId, String allocations, String loadsStores,
-		String ninstructions, String branchtaken, String requestId, String lines, String columns, String unassigned, String algorithm) {
+	private static Map<String, AttributeValue> newItem(long threadId,String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue().withN(requestId));
 		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
-		item.put("allocations", new AttributeValue().withN(allocations));
-		item.put("loadsStores", new AttributeValue().withN(loadsStores));
 		item.put("lines", new AttributeValue().withN(lines));
 		item.put("columns", new AttributeValue().withN(columns));
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
 		item.put("Algorithm", new AttributeValue(algorithm));
 		item.put("InstructionCount", new AttributeValue().withN(ninstructions));
-		item.put("BranchesTaken", new AttributeValue().withN(branchtaken));
 		return item;
 	}
 
@@ -209,17 +205,29 @@ public class WebServer {
 		String[] statsArgs = myData.split("_");
 
 		//Arguments
-		String allocations = statsArgs[0];
-		String loadsStores = statsArgs[1];
-		String ninstructions = statsArgs[2];
-		String branchtaken = statsArgs[3];
-		String requestId = statsArgs[4];
+		String ninstructions = statsArgs[0];
+		String requestId = statsArgs[1];
 
 		try{
 			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
 				new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
 				.build();
-	
+			/*ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
+        		try {
+            			credentialsProvider.getCredentials();
+		        } catch (Exception e) {
+		            throw new AmazonClientException(
+                    "Cannot load the credentials from the credential profiles file. " +
+                    "Please make sure that your credentials file is at the correct " +
+                    "location (~/.aws/credentials), and is in valid format.",
+                    e);
+		        }
+		
+			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()
+            			.withCredentials(credentialsProvider)
+            			.withRegion("us-west-1")
+            			.build();
+	*/
 			String tableName = "requests_data";
 
 			CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
@@ -230,7 +238,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 	
-			Map<String, AttributeValue> item = newItem(threadId,allocations,loadsStores,ninstructions,branchtaken,requestId,lines,columns,unassigned,algorithm);
+			Map<String, AttributeValue> item = newItem(threadId,ninstructions,requestId,lines,columns,unassigned,algorithm);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
