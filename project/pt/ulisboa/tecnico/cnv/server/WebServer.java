@@ -156,6 +156,7 @@ public class WebServer {
 							Thread.sleep(3000);
 							UpdateDatabase(args[5],args[7],args[3],args[1],threadId);
 						}
+						UpdateDatabase(args[5],args[7],args[3],args[1],threadId);
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
