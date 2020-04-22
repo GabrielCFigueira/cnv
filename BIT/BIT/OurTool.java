@@ -43,8 +43,6 @@ public class OurTool
 
 	private static class StatisticsData {
 
-	private int currentRequestId = 0;
-
 	private long dyn_instr_count = 0;
 	
 	private boolean isItFinished = false;
@@ -55,17 +53,14 @@ public class OurTool
 		StatisticsData data = _data.get(threadId);
 
 		long ninstructions = data.dyn_instr_count;
-		int requestId = data.currentRequestId;
 		boolean isItFinished = data.isItFinished;
-		String arguments = "" + ninstructions + "_" + requestId;
+		String arguments = "" + ninstructions;
 		return arguments;
 	} 
 
 	public static synchronized boolean hasTaskFinished(long threadId){
 		return _data.get(threadId).isItFinished;
 	}
-
-	static AtomicInteger globalRequestId = new AtomicInteger();
 
 	private static ConcurrentMap<Long, StatisticsData> _data = new ConcurrentHashMap<Long, StatisticsData>();
 
@@ -80,7 +75,6 @@ public class OurTool
 
 	public static void initialize(String dummy) {
 		_data.put(Thread.currentThread().getId(), new StatisticsData());
-		_data.get(Thread.currentThread().getId()).currentRequestId = globalRequestId.incrementAndGet();
 	}
 
 	public static void end(String dummy) {

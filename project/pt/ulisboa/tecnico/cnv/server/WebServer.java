@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
 
+import java.util.UUID;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
@@ -61,13 +62,11 @@ import com.amazonaws.services.dynamodbv2.document.ItemCollection;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 
-
 public class WebServer {
 
-	private static Map<String, AttributeValue> newItem(long threadId,String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm) {
+	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-		item.put("RequestId", new AttributeValue().withN(requestId));
-		item.put("ThreadId", new AttributeValue(Long.toString(threadId)));
+		item.put("RequestId", new AttributeValue(requestId));
 		item.put("lines", new AttributeValue().withN(lines));
 		item.put("columns", new AttributeValue().withN(columns));
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
@@ -122,6 +121,7 @@ public class WebServer {
 			// Break it down into String[].
 			final String[] params = query.split("&");
 
+			final String uniqueId = UUID.randomUUID().toString();
 			// Store as if it was a direct call to SolverMain.
 			final ArrayList<String> newArgs = new ArrayList<>();
 			for (final String p : params) {
@@ -154,9 +154,9 @@ public class WebServer {
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],threadId);
+							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId);
 						}
-						UpdateDatabase(args[5],args[7],args[3],args[1],threadId);
+						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId);
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
@@ -200,20 +200,14 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId){
-		String myData = OurTool.getStatisticsData(threadId);
-		System.out.println(myData);
-		String[] statsArgs = myData.split("_");
-
-		//Arguments
-		String ninstructions = statsArgs[0];
-		String requestId = statsArgs[1];
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId){
+		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
-			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
+			/*AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
 				new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
-				.build();
-			/*ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
+				.build();*/
+			ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
         		try {
             			credentialsProvider.getCredentials();
 		        } catch (Exception e) {
@@ -226,20 +220,20 @@ public class WebServer {
 		
 			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()
             			.withCredentials(credentialsProvider)
-            			.withRegion("us-west-1")
+            			.withRegion("us-east-1")
             			.build();
-	*/
+	
 			String tableName = "requests_data";
 
 			CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-				.withKeySchema(new KeySchemaElement().withAttributeName("ThreadId").withKeyType(KeyType.HASH), new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.RANGE))
-				.withAttributeDefinitions(new AttributeDefinition().withAttributeName("ThreadId").withAttributeType(ScalarAttributeType.S), new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.N))
+				.withKeySchema(new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.HASH))
+				.withAttributeDefinitions(new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.S))
 				.withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
 	
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 	
-			Map<String, AttributeValue> item = newItem(threadId,ninstructions,requestId,lines,columns,unassigned,algorithm);
+			Map<String, AttributeValue> item = newItem(ninstructions,uniqueId,lines,columns,unassigned,algorithm);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
@@ -248,7 +242,7 @@ public class WebServer {
 			Condition condition = new Condition()
 				.withComparisonOperator(ComparisonOperator.GE.toString())
 				.withAttributeValueList(new AttributeValue("1"));
-			scanFilter.put("ThreadId", condition);
+			scanFilter.put("RequestId", condition);
 			ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
 			ScanResult scanResult = dynamoDB.scan(scanRequest);
 			System.out.println("Result: " + scanResult);
