@@ -14,6 +14,17 @@ Our system is divided into different folders:
 ## System Configurations
 
 ### Instance
+1. We used the Amazon-Linux AMI 2, subnet = us-east-1a.
+1. Enable CloudWatch detailed monitoring.
+1. Add the default storage.
+1. Created a security group with SSH(port 22) and HTTP(port 80) rules.
+
+
+In terms of the code:
+1. We created a copy of our project and changed the dynamoDB communication from a local perspective with the IP to the dynamoDB of the AWS. 
+1. Downloaded the latest version of AWS-java-sdk in the current moment.
+1. Created a makefile with both make and make run instructions for ease of testing.
+1. Edited the etc/rc.local to have this structure
 
 ### LoadBalancer
 1. Traffic: Load balancer protocol = HTTP, Load Balancer Port = 80, Instance Protocol = HTTP and Instance Port = 8000
