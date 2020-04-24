@@ -30,6 +30,6 @@ In order to forward traffic from port 80 to 8000.
 1. We enabled CloudWatch detailed monitoring
 1. We used the default storage given by AWS, with 8 gb.
 1. We picked the previously security group created for the instance, with a rule for SSH and HTTP.
-1. We set the group size to 1, the subnet given to the other instances, set the previous Load Balancer and set the Heath Check Type to ELB with a grace period of 60 seconds.
+1. We set the group size to 1 and the max size to 10, with the same subnet as the subnet given to the other instances, set the previous Load Balancer and set the Heath Check Type to ELB with a grace period of 60 seconds.
 1. Created two group rules, one Increase Group Rule with an alarm that creates a new instance after the CPU utilization increases behond 60%. And one Decrease Group Rule with an alartm that destroys an instance after the CPU utilization reduces to a level smaller than 40%.
 
