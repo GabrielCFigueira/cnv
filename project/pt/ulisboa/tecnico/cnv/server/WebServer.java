@@ -81,7 +81,6 @@ public class WebServer {
 
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
 
-
 		server.createContext("/test", new TestHandler());
 		server.createContext("/sudoku", new MyHandler());
 
@@ -111,16 +110,17 @@ public class WebServer {
         return buf.toString();
     }
 
-    	static class TestHandler implements HttpHandler {
+    static class TestHandler implements HttpHandler {
 		@Override
 		public void handle(final HttpExchange t) throws IOException {
-			String response = "Maragasso aproves";
+			String response = "The instance is working";
 			t.sendResponseHeaders(200, response.length());
 			OutputStream os = t.getResponseBody();
 			os.write(response.getBytes());
 			os.close();
 		}
 	}
+
 	static class MyHandler implements HttpHandler {
 		@Override
 		public void handle(final HttpExchange t) throws IOException {
@@ -220,7 +220,7 @@ public class WebServer {
 				.build();*/
 			ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
         		try {
-            			credentialsProvider.getCredentials();
+            		credentialsProvider.getCredentials();
 		        } catch (Exception e) {
 		            throw new AmazonClientException(
                     "Cannot load the credentials from the credential profiles file. " +

@@ -78,82 +78,82 @@ public class OurTool
 	}
 
 	public static void end(String dummy) {
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			data.isItFinished = true;
+		StatisticsData data = _data.get(Thread.currentThread().getId());
+		data.isItFinished = true;
 	}
 	
     public static synchronized void printDynamic(String foo) 
-		{
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			System.out.println("Number of instructions: " + data.dyn_instr_count);
-		}
+	{
+		StatisticsData data = _data.get(Thread.currentThread().getId());
+		System.out.println("Number of instructions: " + data.dyn_instr_count);
+	}
     
 
     public static synchronized void dynInstrCount(int incr) 
-		{
-			StatisticsData data = _data.get(Thread.currentThread().getId());
-			data.dyn_instr_count += incr;
-		}
+	{
+		StatisticsData data = _data.get(Thread.currentThread().getId());
+		data.dyn_instr_count += incr;
+	}
 
 	public static void doInstrumentation(File in_dir, File out_dir)
-		{
-			String filelist[] = in_dir.list();
+	{
+		String filelist[] = in_dir.list();
 
-			for (int i = 0; i < filelist.length; i++) {
-				String filename = filelist[i];
-				if (filename.endsWith(".class")) {
-					String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
-					ClassInfo ci = new ClassInfo(in_filename);
+		for (int i = 0; i < filelist.length; i++) {
+			String filename = filelist[i];
+			if (filename.endsWith(".class")) {
+				String in_filename = in_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
+				String out_filename = out_dir.getAbsolutePath() + System.getProperty("file.separator") + filename;
+				ClassInfo ci = new ClassInfo(in_filename);
 
-					if(ci.getClassName().matches(".*SolverArgumentParser"))
-						ci.addBefore("BIT/OurTool", "initialize", "null");
+				if(ci.getClassName().matches(".*SolverArgumentParser"))
+					ci.addBefore("BIT/OurTool", "initialize", "null");
 
-					for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
-						Routine routine = (Routine) e.nextElement();
+				for (Enumeration e = ci.getRoutines().elements(); e.hasMoreElements(); ) {
+					Routine routine = (Routine) e.nextElement();
 
-						if(routine.getMethodName().equals("solveSudoku")) {
-							routine.addAfter("BIT/OurTool", "end", "null");
-							routine.addAfter("BIT/OurTool", "printDynamic", "null");
-						}
-						else if(routine.getMethodName().equals("main"))
-							routine.addBefore("BIT/OurTool", "initialize", "null");
-						
-
-						
-						for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
-							BasicBlock bb = (BasicBlock) b.nextElement();
-							bb.addBefore("BIT/OurTool", "dynInstrCount", new Integer(bb.size()));
-							
-						}
-
+					if(routine.getMethodName().equals("solveSudoku")) {
+						routine.addAfter("BIT/OurTool", "end", "null");
+						routine.addAfter("BIT/OurTool", "printDynamic", "null");
 					}
-					ci.write(out_filename);
+					else if(routine.getMethodName().equals("main"))
+						routine.addBefore("BIT/OurTool", "initialize", "null");
+					
+
+					
+					for (Enumeration b = routine.getBasicBlocks().elements(); b.hasMoreElements(); ) {
+						BasicBlock bb = (BasicBlock) b.nextElement();
+						bb.addBefore("BIT/OurTool", "dynInstrCount", new Integer(bb.size()));
+						
+					}
+
 				}
+				ci.write(out_filename);
 			}
-		}
+		}	
+	}
 
 			
 	public static void main(String argv[]) 
-		{
-			if (argv.length != 2 || argv[0].startsWith("-")) {
-				printUsage();
-			}
-	
-			try {
-				File in_dir = new File(argv[0]);
-				File out_dir = new File(argv[1]);
-	
-				if (in_dir.isDirectory() && out_dir.isDirectory()) {
-					doInstrumentation(in_dir, out_dir);
-				
-				}	
-				else {	
-					printUsage();
-				}
-			} catch (NullPointerException e) {
-				printUsage();
-			}
-		
+	{
+		if (argv.length != 2 || argv[0].startsWith("-")) {
+			printUsage();
 		}
+
+		try {
+			File in_dir = new File(argv[0]);
+			File out_dir = new File(argv[1]);
+
+			if (in_dir.isDirectory() && out_dir.isDirectory()) {
+				doInstrumentation(in_dir, out_dir);
+			
+			}	
+			else {	
+				printUsage();
+			}
+		} catch (NullPointerException e) {
+			printUsage();
+		}
+	
+	}
 }
