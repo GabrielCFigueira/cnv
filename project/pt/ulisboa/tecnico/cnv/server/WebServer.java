@@ -82,7 +82,7 @@ public class WebServer {
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
 
 
-
+		server.createContext("/test", new TestHandler());
 		server.createContext("/sudoku", new MyHandler());
 
 		// be aware! infinite pool of threads!
@@ -110,6 +110,17 @@ public class WebServer {
 
         return buf.toString();
     }
+
+    	static class TestHandler implements HttpHandler {
+		@Override
+		public void handle(final HttpExchange t) throws IOException {
+			String response = "Maragasso aproves";
+			t.sendResponseHeaders(200, response.length());
+			OutputStream os = t.getResponseBody();
+			os.write(response.getBytes());
+			os.close();
+		}
+	}
 	static class MyHandler implements HttpHandler {
 		@Override
 		public void handle(final HttpExchange t) throws IOException {
