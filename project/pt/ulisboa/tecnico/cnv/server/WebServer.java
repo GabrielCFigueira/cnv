@@ -55,7 +55,7 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
 import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
-import com.amazonaws.services.dynamodbv2.model.AttributeAction; 
+import com.amazonaws.services.dynamodbv2.model.AttributeAction;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
 import com.amazonaws.services.dynamodbv2.document.ItemCollection;
@@ -173,8 +173,8 @@ public class WebServer {
 						e.printStackTrace();
 					}
 				}
-			  };
-			
+			 };
+
 			  thread.start();
 
 			//Solve sudoku puzzle
@@ -206,7 +206,7 @@ public class WebServer {
             osw.close();
 
 			os.close();
-			
+
 			System.out.println("> Sent response to " + t.getRemoteAddress().toString());
 		}
 	}
@@ -228,22 +228,22 @@ public class WebServer {
 				"location (~/.aws/credentials), and is in valid format.",
 				e);
 			}
-		
+
 			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()
             			.withCredentials(credentialsProvider)
             			.withRegion("us-east-1")
             			.build();
-	
+
 			String tableName = "requests_data";
 
 			CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
 				.withKeySchema(new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.HASH))
 				.withAttributeDefinitions(new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.S))
 				.withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
-	
+
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
-	
+
 			Map<String, AttributeValue> item = newItem(ninstructions,uniqueId,lines,columns,unassigned,algorithm);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
