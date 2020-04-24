@@ -1,4 +1,5 @@
 # CNV checkpoint
+Group 6:
 Diogo Fernandes 86410, Gabriel Figueira 86426, João Margaço 86451
 
 ## System Architecture
@@ -12,8 +13,23 @@ Our system is divided into different folders:
 
 ## System Configurations
 
-### AutoScaler
-
-
+### Instance
 
 ### LoadBalancer
+1. Traffic: Load balancer protocol = HTTP, Load Balancer Port = 80, Instance Protocol = HTTP and Instance Port = 8000
+In order to forward traffic from port 80 to 8000.
+1. Subnet: us-east-1a.
+1. Security Groups: TCP with Port Range = 80.
+1. Configured health check to Ping Path = /test, Ping Protocol = HTTP and Ping Port = 8000. And created a new handler in the WebServer code in order to be compatible with this health check.
+1. We didnt add extra instances.
+1. We didnt choose any tags.
+
+### AutoScaler
+
+1. We have chosen the previously created image of the instance containing the project code.
+1. We enabled CloudWatch detailed monitoring
+1. We used the default storage given by AWS, with 8 gb.
+1. We picked the previously security group created for the instance, with a rule for SSH and HTTP.
+1. We set the group size to 1, the subnet given to the other instances, set the previous Load Balancer and set the Heath Check Type to ELB with a grace period of 60 seconds.
+1. Created two group rules, one Increase Group Rule with an alarm that creates a new instance after the CPU utilization increases behond 60%. And one Decrease Group Rule with an alartm that destroys an instance after the CPU utilization reduces to a level smaller than 40%.
+
