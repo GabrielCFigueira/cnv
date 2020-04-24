@@ -32,8 +32,8 @@ In order to forward traffic from port 80 to 8000.
 2. Subnet: us-east-1a.
 3. Security Groups: TCP with Port Range = 80.
 4. Configured health check to Ping Path = /test, Ping Protocol = HTTP and Ping Port = 8000. And created a new handler in the WebServer code in order to be compatible with this health check.
-5. We didn't add extra instances.
-6. We didn't choose any tags.
+5. We did not add extra instances.
+6. We did not choose any tags.
 
 ### AutoScaler
 
