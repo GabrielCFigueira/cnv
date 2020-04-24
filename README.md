@@ -21,10 +21,19 @@ Our system is divided into different folders:
 
 
 In terms of the code:
+
 5. We created a copy of our project and changed the dynamoDB communication from a local perspective with the IP to the dynamoDB of the AWS. 
 6. Downloaded the latest version of AWS-java-sdk in the current moment.
 7. Created a makefile with both make and make run instructions for ease of testing.
 8. Edited the etc/rc.local to have this structure.
+
+```
+CLASSPATH=/home/ec2-user/cnv/instrumented:/home/ec2-user/cnv/project:/home/ec2-user/cnv/BIT:/home/ec2-user/cnv/BIT/samples:/home/ec2-user/aws-java-sdk-1.11.764/lib/aws-java-sdk-1.11.764.jar:/home/ec2-user/aws-java-sdk-1.11.764/third-party/lib/*:.
+export CLASSPATH
+cd /home/ec2-user/cnv
+make
+make run
+```
 
 ### LoadBalancer
 1. Traffic: Load balancer protocol = HTTP, Load Balancer Port = 80, Instance Protocol = HTTP and Instance Port = 8000
