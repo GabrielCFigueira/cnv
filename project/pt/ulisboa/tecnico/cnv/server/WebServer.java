@@ -81,9 +81,9 @@ public class WebServer {
 
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
 
-		server.createContext("/test", new TestHandler());
 		server.createContext("/sudoku", new MyHandler());
 
+		server.createContext("/test", new TestHandler());
 		// be aware! infinite pool of threads!
 		server.setExecutor(Executors.newCachedThreadPool());
 		server.start();
