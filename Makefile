@@ -20,3 +20,7 @@ run:
 clean:
 	(cd BIT/samples; $(RM) *.class)
 	($(RM) instrumented/pt/ulisboa/tecnico/cnv/solver/*)
+
+loadbalancer:
+	(cd project/pt/ulisboa/tecnico/cnv/loadbalancer; javac *.java)
+	(java -XX:-UseSplitVerifier pt.ulisboa.tecnico.cnv.loadbalancer.LoadBalancer >> loadbalancer.log)
