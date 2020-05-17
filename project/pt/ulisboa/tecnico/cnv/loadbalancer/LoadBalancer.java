@@ -89,12 +89,14 @@ public class LoadBalancer {
         @Override
         public void handle(HttpExchange t) throws IOException {
 		try {	
-			URL url;
+			URL url = null;
 			synchronized(_instances) {
-				url = new URL("http://" + ((Instance) _instances.keySet().values().toArray()[0]).getPublicIpAddress() + ":8000/sudoku?" + t.getRequestURI().getQuery());
-			}			System.out.println("outravez");	
+				for(Instance instance : _instances.keySet()) {
+					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery());
+					break;
+				}
+			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
-
 			//In order to request a server
 			con.setDoOutput(true);
 			con.setRequestMethod("POST");
@@ -147,6 +149,7 @@ public class LoadBalancer {
 			con.disconnect();
 
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.out.println(e.getMessage());
 		}
         }
