@@ -128,7 +128,7 @@ public class AutoScaler {
 				destroyInstance(instance);
 			else if (_instances.get(instance) == true) {
 				nInstances++;
-				System.out.println("load " + load + "\n");
+				System.out.println("load " + load);
 				systemLoad.put(instance.getInstanceId(), load);
 			}
 		}
@@ -138,7 +138,7 @@ public class AutoScaler {
 			totalLoad += load;
 
 
-		System.out.println("totalLoad " + totalLoad);
+		System.out.println("totalLoad " + totalLoad + "\n");
 		if (totalLoad / nInstances > 100000000000L)
 			createInstance();
 		else if (totalLoad / nInstances < 10000000000L && nInstances > 1)
@@ -150,7 +150,7 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-0ed269018a8846ae4")
+		runInstancesRequest.withImageId("ami-01962f036a9d3e618")
 			.withInstanceType("t2.micro")							
 			.withMinCount(1)
 			.withMaxCount(1)
