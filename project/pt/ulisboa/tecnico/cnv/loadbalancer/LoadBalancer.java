@@ -92,7 +92,7 @@ public class LoadBalancer {
 			URL url = null;
 			synchronized(_instances) {
 				for(Instance instance : _instances.keySet()) {
-					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery());
+					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&i=0");
 					break;
 				}
 			}
