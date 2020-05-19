@@ -66,8 +66,8 @@ import com.amazonaws.util.EC2MetadataUtils;
 public class WebServer {
 
 	static String instanceId;
-	static int estimate;
-	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm, int finished) {
+	static String estimate;
+	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm, String finished) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue(requestId));
 		item.put("lines", new AttributeValue().withN(lines));
@@ -143,10 +143,18 @@ public class WebServer {
 			final String uniqueId = UUID.randomUUID().toString();
 			// Store as if it was a direct call to SolverMain.
 			final ArrayList<String> newArgs = new ArrayList<>();
+			int i = 0;
 			for (final String p : params) {
-				final String[] splitParam = p.split("=");
-				newArgs.add("-" + splitParam[0]);
-				newArgs.add(splitParam[1]);
+				
+				if (i < params.length-1){
+					final String[] splitParam = p.split("=");
+					newArgs.add("-" + splitParam[0]);
+					newArgs.add(splitParam[1]);
+					i++;
+				} else {
+
+					estimate = p.split("=")[1];
+				}
 			}
 			newArgs.add("-b");
 			newArgs.add(parseRequestBody(t.getRequestBody()));
@@ -154,18 +162,13 @@ public class WebServer {
 			newArgs.add("-d");
 
 			// Store from ArrayList into regular String[].
+			i = 0;
 			final String[] args = new String[newArgs.size()];
-			int i = 0;
 			for(String arg: newArgs) {
-				if (i != newArgs.size()-1){
-					args[i] = arg;
-					i++;
-				}
-				else{
-					estimate = Integer.parseInt(arg);
-				}
-
+				args[i] = arg;
+				i++;
 			}
+
 			// Get user-provided flags.
 			final SolverArgumentParser ap = new SolverArgumentParser(args);
 
@@ -179,9 +182,9 @@ public class WebServer {
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,0);
+							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,"0");
 						}
-						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,1);
+						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,"1");
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
@@ -225,7 +228,7 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId, int finished){
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId, String finished){
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
