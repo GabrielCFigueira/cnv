@@ -61,10 +61,13 @@ import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
 import com.amazonaws.services.dynamodbv2.document.ItemCollection;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
+import com.amazonaws.util.EC2MetadataUtils;
 
 public class WebServer {
 
-	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm) {
+	static String instanceId;
+	static int estimate;
+	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm, int finished) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue(requestId));
 		item.put("lines", new AttributeValue().withN(lines));
@@ -72,12 +75,17 @@ public class WebServer {
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
 		item.put("Algorithm", new AttributeValue(algorithm));
 		item.put("InstructionCount", new AttributeValue().withN(ninstructions));
+		item.put("InstanceId",new AttributeValue(instanceId));
+		item.put("Finished",new AttributeValue().withN(finished));
+		item.put("Estimate", new AttributeValue().withN(estimate));
 		return item;
 	}
 
 	public static void main(final String[] args) throws Exception {
 
 		//final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 8000), 0);
+
+		instanceId = EC2MetadataUtils.getInstanceId();
 
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
 
@@ -149,8 +157,14 @@ public class WebServer {
 			final String[] args = new String[newArgs.size()];
 			int i = 0;
 			for(String arg: newArgs) {
-				args[i] = arg;
-				i++;
+				if (i != newArgs.size()-1){
+					args[i] = arg;
+					i++;
+				}
+				else{
+					estimate = Integer.parseInt(arg);
+				}
+
 			}
 			// Get user-provided flags.
 			final SolverArgumentParser ap = new SolverArgumentParser(args);
@@ -165,9 +179,9 @@ public class WebServer {
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId);
+							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,0);
 						}
-						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId);
+						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,1);
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
@@ -211,7 +225,7 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId){
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId, int finished){
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
@@ -244,7 +258,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 
-			Map<String, AttributeValue> item = newItem(ninstructions,uniqueId,lines,columns,unassigned,algorithm);
+			Map<String, AttributeValue> item = newItem(ninstructions,uniqueId,lines,columns,unassigned,algorithm,finished);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
