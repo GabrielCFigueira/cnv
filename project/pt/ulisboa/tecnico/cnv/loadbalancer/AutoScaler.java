@@ -95,16 +95,18 @@ public class AutoScaler {
 		Instance minInstance = null;
 		
 		for (Instance instance : _instances.keySet()) {
-			HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
-			Condition condition1 = new Condition()
-				.withComparisonOperator(ComparisonOperator.EQ.toString())
-				.withAttributeValueList(new AttributeValue("0"));
-			Condition condition2 = new Condition()
-				.withComparisonOperator(ComparisonOperator.EQ.toString())
-				.withAttributeValueList(new AttributeValue(instance.getInstanceId()));
-		        scanFilter.put("InstanceId", condition2);
-		        scanFilter.put("Finished", condition1);
-			ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
+			
+			HashMap<String, AttributeValue> expressionAttributeValues = 
+				    new HashMap<String, AttributeValue>();
+			expressionAttributeValues.put(":finished", new AttributeValue().withN("0")); 
+			expressionAttributeValues.put(":instanceId", new AttributeValue(instance.getInstanceId())); 
+			
+			ScanRequest scanRequest = new ScanRequest()
+				.withTableName("requests_data")
+				.withFilterExpression(":finished = Finished and :instanceId = InstanceId")
+				.withProjectionExpression("InstructionCount, Estimate")
+				.withExpressionAttributeValues(expressionAttributeValues);
+
 		
 			System.out.println(instance.getInstanceId() + ":");			
 			ScanResult scanResult = dynamoDB.scan(scanRequest);
@@ -113,6 +115,8 @@ public class AutoScaler {
 			long load = 0;
 			for (Map<String, AttributeValue> item: scanResult.getItems()){
 				hasRequests = true;
+				for(String s : item.keySet())
+					System.out.println(s);
 				long progress = Long.parseLong(item.get("InstructionCount").getN());
 				long estimate = Long.parseLong(item.get("Estimate").getN());
 				if (estimate > progress)
@@ -150,7 +154,7 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-01962f036a9d3e618")
+		runInstancesRequest.withImageId("ami-090a759449cf97ca2")
 			.withInstanceType("t2.micro")							
 			.withMinCount(1)
 			.withMaxCount(1)
