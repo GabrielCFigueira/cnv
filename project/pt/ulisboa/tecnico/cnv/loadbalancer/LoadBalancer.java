@@ -33,6 +33,11 @@ public class LoadBalancer {
 
 	private static Map<Instance, Boolean> _instances = new HashMap<Instance, Boolean>();
 
+	private static long heuristicCoeficient = 6759716;
+	public static long heuristic(long unassigned) {
+		return heuristicCoeficient * unassigned;
+	}
+
 	public static void main(final String[] args) throws Exception {
 
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
@@ -91,8 +96,22 @@ public class LoadBalancer {
 		try {	
 			URL url = null;
 			synchronized(_instances) {
+				
+				//heuristic
+				String query = t.getRequestURI().getQuery();
+				String[] params = query.split("&");
+				long unassigned = 0;
+				for (String s : params) {
+					String[] split = s.split("=");
+					if(split[0].equals("un")) {
+						unassigned = Integer.parseInt(split[1]);
+						break;
+					}
+				}
+				long estimate = heuristic(unassigned);
+					
 				for(Instance instance : _instances.keySet()) {
-					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=0");
+					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate);
 					break;
 				}
 			}
