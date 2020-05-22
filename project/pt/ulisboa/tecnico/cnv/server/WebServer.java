@@ -192,6 +192,7 @@ public class WebServer {
 					catch(InterruptedException e){
 						e.printStackTrace();
 					}
+					UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1"); 
 				}
 			 };
 
@@ -199,7 +200,6 @@ public class WebServer {
 
 			//Solve sudoku puzzle
 			JSONArray solution = s.solveSudoku();
-			UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1");
 
 			// Send response to browser.
 			final Headers hdrs = t.getResponseHeaders();
