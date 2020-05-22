@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.cnv.loadbalancer;
 
+import java.io.IOException;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
@@ -40,6 +41,13 @@ import com.amazonaws.services.cloudwatch.model.Datapoint;
 import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsRequest;
 import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsResult;
 import com.amazonaws.waiters.*; 
+
+import java.io.BufferedReader;
+import java.io.OutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 import java.util.Map;
 import java.util.List;
@@ -165,12 +173,24 @@ public class AutoScaler {
 		String instanceId = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest().withInstanceIds(instanceId);
-		ec2.waiters().instanceRunning().run(new WaiterParameters().withRequest(request));
-
+		ec2.waiters().instanceRunning().run(new WaiterParameters().withRequest(request));		
 
 		DescribeInstancesResult describeInstancesResult = ec2.describeInstances((new DescribeInstancesRequest()).withInstanceIds(instanceId));
 		List<Reservation> reservations = describeInstancesResult.getReservations();
-		_instances.put(reservations.get(0).getInstances().get(0), true);
+		Instance createdInstance = reservations.get(0).getInstances().get(0);
+		
+		boolean hasInitialized = false;
+		//Wait until it completes initialization
+		while (!hasInitialized){
+			try{
+				Thread.sleep(3000);
+				hasInitialized = pingServer(createdInstance.getPublicDnsName());
+			}
+			catch(IOException | InterruptedException e){
+				e.printStackTrace();
+			}
+		}
+		_instances.put(createdInstance, true);
 	}
 
 
@@ -185,4 +205,28 @@ public class AutoScaler {
 		ec2.terminateInstances(request);
 		_instances.remove(instance);
 	}
+
+	public boolean pingServer(String instanceDNS) throws IOException {
+		URL url = new URL("http://" + instanceDNS + ":8000/test");
+		HttpURLConnection con = (HttpURLConnection) url.openConnection();
+		
+		//In order to heartbeat a server
+		con.setDoOutput(true);
+		con.setRequestMethod("POST");
+		con.setRequestProperty("Accept", "*/*");
+		con.setRequestProperty("Content-Type", "text/plain;charset=UTF-8");
+
+		//In order to obtain the response of the server
+		BufferedReader in = new BufferedReader(
+		new InputStreamReader(con.getInputStream()));
+		String inputLine;
+		StringBuffer content = new StringBuffer();
+		while ((inputLine = in.readLine()) != null) {
+			content.append(inputLine);
+		}
+		in.close();
+		System.out.println("Response of heartbeat: " + content.toString());
+		return true;
+	}
+
 }
