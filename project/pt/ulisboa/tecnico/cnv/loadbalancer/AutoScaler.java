@@ -60,6 +60,9 @@ public class AutoScaler {
 	private AmazonEC2 ec2;
     	private AmazonCloudWatch cloudWatch;
 
+	private long highLimit = 2174126532;
+	private long lowLimit = 1087063266;
+
 	public void init() {
 		AWSCredentials credentials = null;
         	try {
@@ -151,9 +154,9 @@ public class AutoScaler {
 
 
 		System.out.println("totalLoad " + totalLoad + "\n");
-		if (totalLoad / nInstances > 100000000000L)
+		if (totalLoad / nInstances > highLimit)
 			createInstance();
-		else if (totalLoad / nInstances < 10000000000L && nInstances > 1)
+		else if (totalLoad / nInstances < lowLimit && nInstances > 1)
 			_instances.put(minInstance, false);
 	}
 
@@ -162,12 +165,12 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-00da8380d01018c38")
+		runInstancesRequest.withImageId("ami-087b4d74f09eda258")
 			.withInstanceType("t2.micro")							
 			.withMinCount(1)
 			.withMaxCount(1)
-			.withKeyName("project")		
-			.withSecurityGroups("project-ssh+http");	
+			.withKeyName("CNV-lab-AWS")		
+			.withSecurityGroups("CNV-ssh+http");	
 					
    		RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
 		String instanceId = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
