@@ -23,15 +23,57 @@ import java.io.OutputStreamWriter;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
+import java.util.UUID;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
+import com.amazonaws.services.dynamodbv2.model.Condition;
+import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.DescribeTableRequest;
+import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
+import com.amazonaws.services.dynamodbv2.model.KeyType;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
+import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
+import com.amazonaws.services.dynamodbv2.model.ScanRequest;
+import com.amazonaws.services.dynamodbv2.model.ScanResult;
+import com.amazonaws.services.dynamodbv2.model.TableDescription;
+import com.amazonaws.services.dynamodbv2.util.TableUtils;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.UpdateItemOutcome;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
+import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
+import com.amazonaws.services.dynamodbv2.model.AttributeAction;
+import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
+import com.amazonaws.services.dynamodbv2.document.ItemCollection;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
+import com.amazonaws.util.EC2MetadataUtils;
 
 public class LoadBalancer {
 
 	private static Map<Instance, Boolean> _instances = new HashMap<Instance, Boolean>();
+	private static Map<String, Map<String,AttributeValue>> _history = new HashMap<String, Map<String, AttributeValue>>();
+	private static AmazonDynamoDB dynamoDB;
 
 	private static long heuristicCoeficient = 6759716;
 	public static long heuristic(long unassigned) {
@@ -40,14 +82,42 @@ public class LoadBalancer {
 
 	public static void main(final String[] args) throws Exception {
 
+		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
+		try {
+			credentialsProvider.getCredentials();
+		} catch (Exception e) {
+			throw new AmazonClientException(
+			"Cannot load the credentials from the credential profiles file. " +
+			"Please make sure that your credentials file is at the correct " +
+			"location (~/.aws/credentials), and is in valid format.",
+			e);
+		}
+
+	        dynamoDB = AmazonDynamoDBClientBuilder.standard()
+            		.withCredentials(credentialsProvider)
+            		.withRegion("us-east-1")
+            		.build();
+
+		//Initialize table in dynamoDB
+		String tableName = "requests_data";
+
+		CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
+			.withKeySchema(new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.HASH))
+			.withAttributeDefinitions(new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.S))
+			.withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+
+		TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
+		TableUtils.waitUntilActive(dynamoDB, tableName);
+
+		//Initialize http handler
 		final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
 
 		server.createContext("/sudoku", new RedirectHandler());
 
-		// be aware! infinite pool of threads!
 		server.setExecutor(Executors.newCachedThreadPool());
 		server.start();
 
+		//Initialize AutoScaler and run it periodically
 		final AutoScaler as = new AutoScaler(_instances);
 
 		System.out.println(server.getAddress().toString());
@@ -94,6 +164,7 @@ public class LoadBalancer {
         @Override
         public void handle(HttpExchange t) throws IOException {
 		try {	
+			final String uniqueId = UUID.randomUUID().toString();
 			URL url = null;
 			synchronized(_instances) {
 				
@@ -111,7 +182,7 @@ public class LoadBalancer {
 				long estimate = heuristic(unassigned);
 					
 				for(Instance instance : _instances.keySet()) {
-					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate);
+					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 					break;
 				}
 			}
@@ -141,6 +212,22 @@ public class LoadBalancer {
 			}
 			in.close();
 			System.out.println(content.toString());
+
+			//Save request in cache
+			HashMap<String, AttributeValue> expressionAttributeValues = new HashMap<String, AttributeValue>();
+			expressionAttributeValues.put(":requestId", new AttributeValue(uniqueId)); 
+			
+			ScanRequest scanRequest = new ScanRequest()
+				.withTableName("requests_data")
+				.withFilterExpression(":requestId = RequestId")
+				.withExpressionAttributeValues(expressionAttributeValues);
+			ScanResult scanResult = dynamoDB.scan(scanRequest);
+			
+			for (Map<String, AttributeValue> item : scanResult.getItems()){
+     				for(String sItem : item.keySet())
+					System.out.println(sItem);
+				_history.put(uniqueId,item);
+			}
 
 			//In order to return to the client
 			final Headers hdrs = t.getResponseHeaders();

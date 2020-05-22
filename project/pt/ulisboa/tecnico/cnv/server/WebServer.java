@@ -67,9 +67,10 @@ public class WebServer {
 
 	static String instanceId;
 	static String estimate;
-	private static Map<String, AttributeValue> newItem(String ninstructions, String requestId, String lines, String columns, String unassigned, String algorithm, String finished) {
+	static String uniqueId;
+	private static Map<String, AttributeValue> newItem(String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
-		item.put("RequestId", new AttributeValue(requestId));
+		item.put("RequestId", new AttributeValue(uniqueId));
 		item.put("lines", new AttributeValue().withN(lines));
 		item.put("columns", new AttributeValue().withN(columns));
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
@@ -140,20 +141,23 @@ public class WebServer {
 			// Break it down into String[].
 			final String[] params = query.split("&");
 
-			final String uniqueId = UUID.randomUUID().toString();
 			// Store as if it was a direct call to SolverMain.
 			final ArrayList<String> newArgs = new ArrayList<>();
 			int i = 0;
 			for (final String p : params) {
 				
-				if (i < params.length-1){
+				if (i < params.length-2){
 					final String[] splitParam = p.split("=");
 					newArgs.add("-" + splitParam[0]);
 					newArgs.add(splitParam[1]);
 					i++;
-				} else {
+				} else if (i == params.length-2) {
 
 					estimate = p.split("=")[1];
+					i++;
+				}
+				  else if (i == params.length-1){
+					uniqueId = p.split("=")[1];
 				}
 			}
 			newArgs.add("-b");
@@ -182,9 +186,8 @@ public class WebServer {
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,"0");
+							UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"0");
 						}
-						UpdateDatabase(args[5],args[7],args[3],args[1],uniqueId, threadId,"1");
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
@@ -196,7 +199,7 @@ public class WebServer {
 
 			//Solve sudoku puzzle
 			JSONArray solution = s.solveSudoku();
-
+			UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1");
 
 			// Send response to browser.
 			final Headers hdrs = t.getResponseHeaders();
@@ -228,7 +231,7 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, String uniqueId, long threadId, String finished){
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId, String finished){
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
@@ -261,7 +264,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 
-			Map<String, AttributeValue> item = newItem(ninstructions,uniqueId,lines,columns,unassigned,algorithm,finished);
+			Map<String, AttributeValue> item = newItem(ninstructions,lines,columns,unassigned,algorithm,finished);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
