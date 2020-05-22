@@ -66,9 +66,7 @@ import com.amazonaws.util.EC2MetadataUtils;
 public class WebServer {
 
 	static String instanceId;
-	static String estimate;
-	static String uniqueId;
-	private static Map<String, AttributeValue> newItem(String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished) {
+	private static Map<String, AttributeValue> newItem(String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished, String estimate, String uniqueId) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue(uniqueId));
 		item.put("lines", new AttributeValue().withN(lines));
@@ -134,6 +132,8 @@ public class WebServer {
 		@Override
 		public void handle(final HttpExchange t) throws IOException {
 
+			String estimate = "";
+			String uniqueId = "";
 			// Get the query.
 			final String query = t.getRequestURI().getQuery();
 			System.out.println("> Query:\t" + query);
@@ -181,18 +181,21 @@ public class WebServer {
 
 			final long threadId = Thread.currentThread().getId();
 			//Start a pending thread to continuously update the data of a request
+			final String estimatE = estimate;
+			final String uniqueID = uniqueId;
+			
 			Thread thread = new Thread(){
 				public void run(){
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"0");
+							UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"0", estimatE, uniqueID);
 						}
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
 					}
-					UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1"); 
+					UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1", estimatE, uniqueID); 
 				}
 			 };
 
@@ -231,7 +234,7 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId, String finished){
+	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId, String finished, String estimate, String uniqueId){
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
@@ -264,7 +267,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 
-			Map<String, AttributeValue> item = newItem(ninstructions,lines,columns,unassigned,algorithm,finished);
+			Map<String, AttributeValue> item = newItem(ninstructions,lines,columns,unassigned,algorithm,finished, estimate, uniqueId);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
