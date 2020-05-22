@@ -52,16 +52,17 @@ import java.net.URL;
 import java.util.Map;
 import java.util.List;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 public class AutoScaler {
 
-	private Map<Instance, Boolean> _instances;
+	private ConcurrentHashMap<Instance, Boolean> _instances;
 	private AmazonEC2 ec2;
     	private AmazonCloudWatch cloudWatch;
 
-	private long highLimit = 2174126532;
-	private long lowLimit = 1087063266;
+	private long highLimit = 2174126532L;
+	private long lowLimit = 1087063266L;
 
 	public void init() {
 		AWSCredentials credentials = null;
@@ -79,7 +80,7 @@ public class AutoScaler {
 		cloudWatch = AmazonCloudWatchClientBuilder.standard().withRegion("us-east-1").withCredentials(new AWSStaticCredentialsProvider(credentials)).build();	
 	}
 
-	public AutoScaler(Map<Instance, Boolean> instances) {
+	public AutoScaler(ConcurrentHashMap<Instance, Boolean> instances) {
 		init();
 		_instances = instances;
 		createInstance();
@@ -126,8 +127,6 @@ public class AutoScaler {
 			long load = 0;
 			for (Map<String, AttributeValue> item: scanResult.getItems()){
 				hasRequests = true;
-				for(String s : item.keySet())
-					System.out.println(s);
 				long progress = Long.parseLong(item.get("InstructionCount").getN());
 				long estimate = Long.parseLong(item.get("Estimate").getN());
 				if (estimate > progress)
@@ -165,7 +164,7 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-087b4d74f09eda258")
+		runInstancesRequest.withImageId("ami-0c6bd9d82b7b8f375")
 			.withInstanceType("t2.micro")							
 			.withMinCount(1)
 			.withMaxCount(1)
@@ -190,7 +189,7 @@ public class AutoScaler {
 				hasInitialized = pingServer(createdInstance.getPublicDnsName());
 			}
 			catch(IOException | InterruptedException e){
-				e.printStackTrace();
+				System.out.println("Try again, chief");
 			}
 		}
 		_instances.put(createdInstance, true);

@@ -23,7 +23,9 @@ import java.io.OutputStreamWriter;
 
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
+import java.util.ArrayList;
 
 import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
@@ -71,7 +73,7 @@ import com.amazonaws.util.EC2MetadataUtils;
 
 public class LoadBalancer {
 
-	private static Map<Instance, Boolean> _instances = new HashMap<Instance, Boolean>();
+	private static ConcurrentHashMap<Instance, Boolean> _instances = new ConcurrentHashMap<Instance, Boolean>();
 	private static Map<String, Map<String,AttributeValue>> _history = new HashMap<String, Map<String, AttributeValue>>();
 	private static AmazonDynamoDB dynamoDB;
 
@@ -164,10 +166,13 @@ public class LoadBalancer {
         @Override
         public void handle(HttpExchange t) throws IOException {
 		try {	
-			final String uniqueId = UUID.randomUUID().toString();
+			String uniqueId = UUID.randomUUID().toString();
 			URL url = null;
+			
 			synchronized(_instances) {
-				
+				List<Instance> keys = new ArrayList<>(_instances.keySet());	
+				Instance instance = keys.get((int) (Math.random() * (keys.size() - 1)));
+
 				//heuristic
 				String query = t.getRequestURI().getQuery();
 				String[] params = query.split("&");
@@ -181,10 +186,7 @@ public class LoadBalancer {
 				}
 				long estimate = heuristic(unassigned);
 					
-				for(Instance instance : _instances.keySet()) {
-					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
-					break;
-				}
+				url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			//In order to request a server
