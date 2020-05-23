@@ -134,7 +134,7 @@ public class AutoScaler {
 				System.out.println("progress " + progress);
 				System.out.println("estimate " + estimate);
 			}
-			if (minLoad > load) {
+			if (minLoad > load && _instances.get(instance) == true) {
 				minLoad = load;
 				minInstance = instance;
 			}	

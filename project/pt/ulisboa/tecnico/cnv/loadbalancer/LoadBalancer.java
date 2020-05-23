@@ -76,6 +76,16 @@ public class LoadBalancer {
 	private static ConcurrentHashMap<Instance, Boolean> _instances = new ConcurrentHashMap<Instance, Boolean>();
 	private static Map<String, Map<String,AttributeValue>> _history = new HashMap<String, Map<String, AttributeValue>>();
 	private static AmazonDynamoDB dynamoDB;
+	
+	private static Map<String, AttributeValue> newItem(String finished, String estimate, String uniqueId, String instanceId) {
+		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+		item.put("RequestId", new AttributeValue(uniqueId));
+		item.put("Finished",new AttributeValue().withN(finished));
+		item.put("Estimate", new AttributeValue().withN(estimate));
+		item.put("InstanceId", new AttributeValue(instanceId));
+		item.put("InstructionCount", new AttributeValue().withN("0"));
+		return item;
+	}
 
 	private static long heuristicCoeficient = 6759716;
 	public static long heuristic(long unassigned) {
@@ -84,7 +94,7 @@ public class LoadBalancer {
 
 	private static long highLimit = 2174126532L;
 	
-	public static String lowestLoad() {
+	public static String lowestLoad(String uniqueId, String requestEstimate) {
 
 		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
 		try {
@@ -133,13 +143,33 @@ public class LoadBalancer {
 	
 
 
-		System.out.println("minimalLoad: " + minLoad + " :instance" + minInstance.getInstanceId() + "\n");
+		if(minInstance != null) {
+			System.out.println("minimalLoad: " + minLoad + " :instance" + minInstance.getInstanceId() + "\n");
 		
-		if(minLoad < highLimit)
-			return minInstance.getPublicDnsName();
-			}
+			if(minLoad < highLimit) {
+				try {
+					Map<String, AttributeValue> item = newItem("0", requestEstimate, uniqueId, minInstance.getInstanceId());
+					PutItemRequest putItemRequest = new PutItemRequest("requests_data", item);
+					PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
+				} catch (Exception e) {
+					System.out.println(e.getMessage());
+					e.printStackTrace();
+					System.exit(-1);
+				}
+				return minInstance.getPublicDnsName();
+			
+			}		
 		}
+		
+			}
+			try {
+				Thread.sleep(3000);
+			} catch (Exception e) {
+				System.out.println(e.getMessage());
+				e.printStackTrace();
+			}
 
+		}
 	}
 
 
@@ -254,7 +284,7 @@ public class LoadBalancer {
 						Thread.sleep(1000);
 						as.run();
 					}				
-				} catch(InterruptedException e){	
+				} catch(Exception e){	
 					e.printStackTrace();
 					System.exit(-1);
 				}
@@ -307,7 +337,7 @@ public class LoadBalancer {
 				if (estimate == 0){
 					estimate = heuristic(Long.parseLong(args.get("un")));
 				}
-				url = new URL("http://" + lowestLoad() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
+				url = new URL("http://" + lowestLoad(uniqueId, Long.toString(estimate)) + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			//In order to request a server
