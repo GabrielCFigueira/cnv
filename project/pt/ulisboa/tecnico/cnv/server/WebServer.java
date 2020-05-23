@@ -70,8 +70,8 @@ public class WebServer {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("Puzzle", new AttributeValue(puzzle));
 		item.put("RequestId", new AttributeValue(uniqueId));
-		item.put("lines", new AttributeValue().withN(lines));
-		item.put("columns", new AttributeValue().withN(columns));
+		item.put("ldim", new AttributeValue().withN(lines));
+		item.put("cdim", new AttributeValue().withN(columns));
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
 		item.put("Algorithm", new AttributeValue(algorithm));
 		item.put("InstructionCount", new AttributeValue().withN(ninstructions));

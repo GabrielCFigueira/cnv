@@ -172,6 +172,50 @@ public class LoadBalancer {
 		}
 	}
 
+	public static long findEqualExecutingRequests(Map<String,String> userRequest) {
+
+		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
+		try {
+			credentialsProvider.getCredentials();		
+		} catch (Exception e) {
+			throw new AmazonClientException("Cannot load the credentials from the credential profiles file. Please make sure that your credentials file is at the correct location (~/.aws/credentials), and is in valid format.", e);
+		}
+	
+		AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()	
+			.withCredentials(credentialsProvider)
+			.withRegion("us-east-1")
+			.build();
+
+			
+			
+		HashMap<String, AttributeValue> expressionAttributeValues = 
+    			new HashMap<String, AttributeValue>();
+		expressionAttributeValues.put(":finished", new AttributeValue().withN("0")); 
+		expressionAttributeValues.put(":puzzle", new AttributeValue(userRequest.get("i"))); 
+		expressionAttributeValues.put(":ldim", new AttributeValue(userRequest.get("n2"))); 
+		expressionAttributeValues.put(":unassigned", new AttributeValue(userRequest.get("un"))); 
+		expressionAttributeValues.put(":algorithm", new AttributeValue(userRequest.get("s"))); 
+			
+		
+		ScanRequest scanRequest = new ScanRequest()	
+			.withTableName("requests_data")
+			.withFilterExpression(":finished = Finished and :puzzle = Puzzle and :ldim = ldim and :unassigned = Unassigned and :algorithm = Algorithm")
+			.withProjectionExpression("InstructionCount")
+			.withExpressionAttributeValues(expressionAttributeValues);
+	
+		ScanResult scanResult = dynamoDB.scan(scanRequest);
+
+		long res = 0;
+
+		for (Map<String, AttributeValue> item: scanResult.getItems()){
+			long progress = Long.parseLong(item.get("InstructionCount").getN());
+			if(progress > res)
+				res = progress;
+		}
+		return res;
+	}
+
+
 
 	public static long findCloseRequests(Map<String,String> userRequest){
 		long cost = 0L;
@@ -184,7 +228,7 @@ public class LoadBalancer {
 				System.out.println("Equal puzzle");
 				similarity += 1;
 			}
-			if ((prevRequest.get("lines").getN()).equals(userRequest.get("n2"))){
+			if ((prevRequest.get("ldim").getN()).equals(userRequest.get("n2"))){
 				System.out.println("Equal size");
 				similarity += 1;
 				if ((prevRequest.get("Unassigned").getN()).equals(userRequest.get("un"))){
@@ -331,12 +375,15 @@ public class LoadBalancer {
 					String[] split = s.split("=");
 					args.put(split[0],split[1]);
 				}
-				long estimate = 0;
-				estimate = findCloseRequests(args);
+
+				long estimate = findCloseRequests(args);
+				long executingRequest = findEqualExecutingRequests(args);
 				System.out.println("First estimate value obtained: " + estimate);
-				if (estimate == 0){
-					estimate = heuristic(Long.parseLong(args.get("un")));
-				}
+				if (estimate == 0)
+					estimate = Math.max(executingRequest, heuristic(Long.parseLong(args.get("un"))));
+				else
+					estimate = Math.max(executingRequest, estimate);
+
 				url = new URL("http://" + lowestLoad(uniqueId, Long.toString(estimate)) + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
