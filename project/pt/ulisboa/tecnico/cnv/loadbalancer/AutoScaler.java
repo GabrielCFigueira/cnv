@@ -164,12 +164,12 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-00f21d6d0515730e3")
+		runInstancesRequest.withImageId("ami-0bff97863b743a6fb")
 			.withInstanceType("t2.micro")							
 			.withMinCount(1)
 			.withMaxCount(1)
-			.withKeyName("project")		
-			.withSecurityGroups("project-ssh+http");	
+			.withKeyName("CNV-lab-AWS")		
+			.withSecurityGroups("CNV-ssh+http");	
 					
    		RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
 		String instanceId = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();

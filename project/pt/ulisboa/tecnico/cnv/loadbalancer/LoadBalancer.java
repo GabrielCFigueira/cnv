@@ -82,6 +82,67 @@ public class LoadBalancer {
 		return heuristicCoeficient * unassigned;
 	}
 
+	private static long highLimit = 2174126532L;
+	
+	public static String lowestLoad() {
+
+		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
+		try {
+			credentialsProvider.getCredentials();		
+		} catch (Exception e) {
+			throw new AmazonClientException("Cannot load the credentials from the credential profiles file. Please make sure that your credentials file is at the correct location (~/.aws/credentials), and is in valid format.", e);
+		}
+	
+		AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()	
+			.withCredentials(credentialsProvider)
+			.withRegion("us-east-1")
+			.build();
+
+		while(true) {
+			synchronized(_instances) {
+		long minLoad = Long.MAX_VALUE;
+		Instance minInstance = null;
+		
+		for (Instance instance : _instances.keySet()) {
+			
+			HashMap<String, AttributeValue> expressionAttributeValues = 
+				    new HashMap<String, AttributeValue>();
+			expressionAttributeValues.put(":finished", new AttributeValue().withN("0")); 
+			expressionAttributeValues.put(":instanceId", new AttributeValue(instance.getInstanceId())); 
+			
+			ScanRequest scanRequest = new ScanRequest()
+				.withTableName("requests_data")
+				.withFilterExpression(":finished = Finished and :instanceId = InstanceId")
+				.withProjectionExpression("InstructionCount, Estimate")
+				.withExpressionAttributeValues(expressionAttributeValues);
+
+			ScanResult scanResult = dynamoDB.scan(scanRequest);
+			
+			long load = 0;
+			for (Map<String, AttributeValue> item: scanResult.getItems()){
+				long progress = Long.parseLong(item.get("InstructionCount").getN());
+				long estimate = Long.parseLong(item.get("Estimate").getN());
+				if (estimate > progress)
+					load += estimate - progress;
+			}
+			if (minLoad > load && _instances.get(instance) == true) {
+				minLoad = load;
+				minInstance = instance;
+			}	
+		}
+	
+
+
+		System.out.println("minimalLoad: " + minLoad + " :instance" + minInstance.getInstanceId() + "\n");
+		
+		if(minLoad < highLimit)
+			return minInstance.getPublicDnsName();
+			}
+		}
+
+	}
+
+
 	public static long findCloseRequests(Map<String,String> userRequest){
 		long cost = 0L;
 		long dividedCost = 0L;
@@ -100,14 +161,22 @@ public class LoadBalancer {
 					System.out.println("Equal unassigned number");
 					similarity += 2;
 				}
-				else if (Math.abs(Long.parseLong(prevRequest.get("Unassigned").getN())- Long.parseLong(userRequest.get("un"))) < 20){
-					System.out.println("Difference between unassigned is less than 20");
+				else if (Math.abs(Long.parseLong(prevRequest.get("Unassigned").getN())- Long.parseLong(userRequest.get("un"))) < Math.pow(Integer.parseInt(userRequest.get("n2")), 2) / 4 ){
+					System.out.println("Difference between unassigned is less than 1/4");
 					similarity += 1;
 				}
+				else {
+					System.out.println("Too different unassigned");
+					similarity -= 40;
+				}
+			}
+			else {
+				System.out.println("Different size");
+				similarity -= 80;
 			}
 			if ((prevRequest.get("Algorithm").getS()).equals(userRequest.get("s")) ){
 				System.out.println("Equal algorithm");
-				similarity += 1;
+				similarity += 2;
 			}
 			//Put cost in map according to similarity
 			if (closeRequests.get(similarity) == null){
@@ -222,8 +291,6 @@ public class LoadBalancer {
 			URL url = null;
 			
 			synchronized(_instances) {
-				List<Instance> keys = new ArrayList<>(_instances.keySet());	
-				Instance instance = keys.get((int) (Math.random() * (keys.size() - 1)));
 
 				//heuristic
 				String query = t.getRequestURI().getQuery();
@@ -240,7 +307,7 @@ public class LoadBalancer {
 				if (estimate == 0){
 					estimate = heuristic(Long.parseLong(args.get("un")));
 				}
-				url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
+				url = new URL("http://" + lowestLoad() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			//In order to request a server
