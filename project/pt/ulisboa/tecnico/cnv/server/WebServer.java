@@ -268,7 +268,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 			
-			if ( estimate < ninstructions)
+			if (Long.parseLong(estimate) < Long.parseLong(ninstructions))
 				estimate = ninstructions;
 
 			Map<String, AttributeValue> item = newItem(puzzle, ninstructions,lines,columns,unassigned,algorithm,finished, estimate, uniqueId);
