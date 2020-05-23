@@ -192,8 +192,8 @@ public class LoadBalancer {
     			new HashMap<String, AttributeValue>();
 		expressionAttributeValues.put(":finished", new AttributeValue().withN("0")); 
 		expressionAttributeValues.put(":puzzle", new AttributeValue(userRequest.get("i"))); 
-		expressionAttributeValues.put(":ldim", new AttributeValue(userRequest.get("n2"))); 
-		expressionAttributeValues.put(":unassigned", new AttributeValue(userRequest.get("un"))); 
+		expressionAttributeValues.put(":ldim", new AttributeValue().withN(userRequest.get("n2"))); 
+		expressionAttributeValues.put(":unassigned", new AttributeValue().withN(userRequest.get("un"))); 
 		expressionAttributeValues.put(":algorithm", new AttributeValue(userRequest.get("s"))); 
 			
 		
@@ -208,10 +208,12 @@ public class LoadBalancer {
 		long res = 0;
 
 		for (Map<String, AttributeValue> item: scanResult.getItems()){
+			System.out.println("I did enter here chief");
 			long progress = Long.parseLong(item.get("InstructionCount").getN());
 			if(progress > res)
 				res = progress;
 		}
+		System.out.println("Result from running requests: " + res);
 		return res;
 	}
 
