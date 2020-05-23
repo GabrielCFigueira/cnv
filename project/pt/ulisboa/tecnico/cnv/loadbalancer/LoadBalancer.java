@@ -76,7 +76,8 @@ public class LoadBalancer {
 	private static ConcurrentHashMap<Instance, Boolean> _instances = new ConcurrentHashMap<Instance, Boolean>();
 	private static Map<String, Map<String,AttributeValue>> _history = new HashMap<String, Map<String, AttributeValue>>();
 	private static AmazonDynamoDB dynamoDB;
-	
+	private static AutoScaler as;
+
 	private static Map<String, AttributeValue> newItem(String finished, String estimate, String uniqueId, String instanceId) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("RequestId", new AttributeValue(uniqueId));
@@ -94,7 +95,7 @@ public class LoadBalancer {
 
 	private static long highLimit = 2174126532L;
 	
-	public static String lowestLoad(String uniqueId, String requestEstimate) {
+	public static Instance lowestLoad(String uniqueId, String requestEstimate) {
 
 		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
 		try {
@@ -156,7 +157,7 @@ public class LoadBalancer {
 					e.printStackTrace();
 					System.exit(-1);
 				}
-				return minInstance.getPublicDnsName();
+				return minInstance;
 			
 			}		
 		}
@@ -208,7 +209,6 @@ public class LoadBalancer {
 		long res = 0;
 
 		for (Map<String, AttributeValue> item: scanResult.getItems()){
-			System.out.println("I did enter here chief");
 			long progress = Long.parseLong(item.get("InstructionCount").getN());
 			if(progress > res)
 				res = progress;
@@ -317,7 +317,7 @@ public class LoadBalancer {
 		server.start();
 
 		//Initialize AutoScaler and run it periodically
-		final AutoScaler as = new AutoScaler(_instances);
+		as = new AutoScaler(_instances);
 
 		System.out.println(server.getAddress().toString());
 
@@ -362,19 +362,23 @@ public class LoadBalancer {
       
         @Override
         public void handle(HttpExchange t) throws IOException {
+		Instance instance = null;
+		String query = t.getRequestURI().getQuery();
+		String s = parseRequestBody(t.getRequestBody());
+		String uniqueId = UUID.randomUUID().toString();
+
+		while(true) {
 		try {	
-			String uniqueId = UUID.randomUUID().toString();
 			URL url = null;
 			
 			synchronized(_instances) {
 
 				//heuristic
-				String query = t.getRequestURI().getQuery();
 				String[] params = query.split("&");
 				long unassigned = 0;
 				Map<String,String> args = new HashMap<String,String>();
-				for (String s : params) {
-					String[] split = s.split("=");
+				for (String st : params) {
+					String[] split = st.split("=");
 					args.put(split[0],split[1]);
 				}
 
@@ -386,7 +390,8 @@ public class LoadBalancer {
 				else
 					estimate = Math.max(executingRequest, estimate);
 
-				url = new URL("http://" + lowestLoad(uniqueId, Long.toString(estimate)) + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
+				instance = lowestLoad(uniqueId, Long.toString(estimate));
+				url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			//In order to request a server
@@ -397,7 +402,6 @@ public class LoadBalancer {
 
 			OutputStream outStream = con.getOutputStream();
 			OutputStreamWriter outStreamWriter = new OutputStreamWriter(outStream, "UTF-8");
-			String s = parseRequestBody(t.getRequestBody());
 			System.out.println("Board: "+ s);
 			outStreamWriter.write(s);
 			outStreamWriter.flush();
@@ -455,10 +459,17 @@ public class LoadBalancer {
 			
 
 			con.disconnect();
+			break;
 
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.out.println(e.getMessage());
+			synchronized(_instances) {
+				if(_instances.size() == 1)
+					as.createInstance();
+				_instances.put(instance, false);
+			}
+		}
 		}
         }
       }
