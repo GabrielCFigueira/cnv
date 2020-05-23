@@ -66,8 +66,9 @@ import com.amazonaws.util.EC2MetadataUtils;
 public class WebServer {
 
 	static String instanceId;
-	private static Map<String, AttributeValue> newItem(String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished, String estimate, String uniqueId) {
+	private static Map<String, AttributeValue> newItem(String puzzle, String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished, String estimate, String uniqueId) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
+		item.put("Puzzle", new AttributeValue(puzzle));
 		item.put("RequestId", new AttributeValue(uniqueId));
 		item.put("lines", new AttributeValue().withN(lines));
 		item.put("columns", new AttributeValue().withN(columns));
@@ -189,13 +190,13 @@ public class WebServer {
 					try{
 						while(!OurTool.hasTaskFinished(threadId)){
 							Thread.sleep(3000);
-							UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"0", estimatE, uniqueID);
+							UpdateDatabase(args[9],args[5],args[7],args[3],args[1],threadId,"0", estimatE, uniqueID);
 						}
 					}
 					catch(InterruptedException e){
 						e.printStackTrace();
 					}
-					UpdateDatabase(args[5],args[7],args[3],args[1],threadId,"1", estimatE, uniqueID); 
+					UpdateDatabase(args[9],args[5],args[7],args[3],args[1],threadId,"1", estimatE, uniqueID); 
 				}
 			 };
 
@@ -234,7 +235,7 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String lines, String columns, String unassigned, String algorithm, long threadId, String finished, String estimate, String uniqueId){
+	public static void UpdateDatabase(String puzzle, String lines, String columns, String unassigned, String algorithm, long threadId, String finished, String estimate, String uniqueId){
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
 		try{
@@ -267,7 +268,7 @@ public class WebServer {
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
 
-			Map<String, AttributeValue> item = newItem(ninstructions,lines,columns,unassigned,algorithm,finished, estimate, uniqueId);
+			Map<String, AttributeValue> item = newItem(puzzle, ninstructions,lines,columns,unassigned,algorithm,finished, estimate, uniqueId);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 

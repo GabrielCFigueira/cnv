@@ -82,6 +82,58 @@ public class LoadBalancer {
 		return heuristicCoeficient * unassigned;
 	}
 
+	public static long findCloseRequests(Map<String,String> userRequest){
+		long cost = 0L;
+		long dividedCost = 0L;
+		Map<Integer,List<Long>> closeRequests = new HashMap<Integer,List<Long>>();		
+		int maxSimilarity = 0;
+		for (Map<String,AttributeValue> prevRequest : _history.values()){
+			int similarity = 0;
+			if ((prevRequest.get("Puzzle").getS()).equals(userRequest.get("i"))){
+				System.out.println("Equal puzzle");
+				similarity += 1;
+			}
+			if ((prevRequest.get("lines").getN()).equals(userRequest.get("n2"))){
+				System.out.println("Equal size");
+				similarity += 1;
+				if ((prevRequest.get("Unassigned").getN()).equals(userRequest.get("un"))){
+					System.out.println("Equal unassigned number");
+					similarity += 2;
+				}
+				else if (Math.abs(Long.parseLong(prevRequest.get("Unassigned").getN())- Long.parseLong(userRequest.get("un"))) < 20){
+					System.out.println("Difference between unassigned is less than 20");
+					similarity += 1;
+				}
+			}
+			if ((prevRequest.get("Algorithm").getS()).equals(userRequest.get("s")) ){
+				System.out.println("Equal algorithm");
+				similarity += 1;
+			}
+			//Put cost in map according to similarity
+			if (closeRequests.get(similarity) == null){
+				closeRequests.put(similarity,new ArrayList<Long>());
+			}
+			System.out.println("The similarity value to the request was: " + similarity);
+			//TODO Potentially overwrite with the number of instructions
+			System.out.println("The estimate value of the request is: " + Long.parseLong(prevRequest.get("Estimate").getN()));
+			closeRequests.get(similarity).add(Long.parseLong(prevRequest.get("InstructionCount").getN()));
+			if (similarity > maxSimilarity){
+				maxSimilarity = similarity;
+			}
+		}
+		//Calcualte the cost
+		if (maxSimilarity > 0){
+			for (Long reqCost: closeRequests.get(maxSimilarity)){
+				cost += reqCost;
+			}
+			System.out.println("The estimate value obtained with requests was: " + cost);
+			System.out.println("Number of similar requests for the max similarity: " + closeRequests.get(maxSimilarity).size());
+			dividedCost = cost / closeRequests.get(maxSimilarity).size();
+			System.out.println("Result of the division: " + dividedCost);
+		}
+		return dividedCost;
+	}
+
 	public static void main(final String[] args) throws Exception {
 
 		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
@@ -177,15 +229,17 @@ public class LoadBalancer {
 				String query = t.getRequestURI().getQuery();
 				String[] params = query.split("&");
 				long unassigned = 0;
+				Map<String,String> args = new HashMap<String,String>();
 				for (String s : params) {
 					String[] split = s.split("=");
-					if(split[0].equals("un")) {
-						unassigned = Integer.parseInt(split[1]);
-						break;
-					}
+					args.put(split[0],split[1]);
 				}
-				long estimate = heuristic(unassigned);
-					
+				long estimate = 0;
+				estimate = findCloseRequests(args);
+				System.out.println("First estimate value obtained: " + estimate);
+				if (estimate == 0){
+					estimate = heuristic(Long.parseLong(args.get("un")));
+				}
 				url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?" + t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId );
 			}
 			HttpURLConnection con = (HttpURLConnection) url.openConnection();
