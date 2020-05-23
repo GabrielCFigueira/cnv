@@ -147,7 +147,7 @@ public class LoadBalancer {
 		if(minInstance != null) {
 			System.out.println("minimalLoad: " + minLoad + " :instance" + minInstance.getInstanceId() + "\n");
 		
-			if(minLoad < highLimit) {
+			if(minLoad  < highLimit) {
 				try {
 					Map<String, AttributeValue> item = newItem("0", requestEstimate, uniqueId, minInstance.getInstanceId());
 					PutItemRequest putItemRequest = new PutItemRequest("requests_data", item);
@@ -465,8 +465,15 @@ public class LoadBalancer {
 			e.printStackTrace();
 			System.out.println(e.getMessage());
 			synchronized(_instances) {
-				if(_instances.size() == 1)
-					as.createInstance();
+				if(_instances.size() == 1) {
+					Thread thread = new Thread(){	
+						public void run(){
+							as.createInstance();
+						}
+					
+					};
+					thread.start();
+				}
 				_instances.put(instance, false);
 			}
 		}

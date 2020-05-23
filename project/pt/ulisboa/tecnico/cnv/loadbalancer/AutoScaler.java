@@ -151,11 +151,11 @@ public class AutoScaler {
 		for(long load : systemLoad.values())
 			totalLoad += load;
 
-
+		
 		System.out.println("totalLoad " + totalLoad + "\n");
-		if (totalLoad / nInstances > highLimit)
+		if (nInstances > 0 && totalLoad / nInstances > highLimit)
 			createInstance();
-		else if (totalLoad / nInstances < lowLimit && nInstances > 1)
+		else if (nInstances > 1 && totalLoad / nInstances < lowLimit)
 			_instances.put(minInstance, false);
 	}
 
