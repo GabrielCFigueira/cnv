@@ -99,18 +99,6 @@ public class LoadBalancer {
 
 	public static Instance lowestLoad(String uniqueId, String requestEstimate) {
 
-		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
-		try {
-			credentialsProvider.getCredentials();
-		} catch (Exception e) {
-			throw new AmazonClientException(
-					"Cannot load the credentials from the credential profiles file. Please make sure that your credentials file is at the correct location (~/.aws/credentials), and is in valid format.",
-					e);
-		}
-
-		AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withCredentials(credentialsProvider)
-				.withRegion("us-east-1").build();
-
 		while (true) {
 			synchronized (_instances) {
 				long minLoad = Long.MAX_VALUE;
@@ -176,17 +164,6 @@ public class LoadBalancer {
 
 	public static long findEqualExecutingRequests(Map<String, String> userRequest) {
 
-		ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
-		try {
-			credentialsProvider.getCredentials();
-		} catch (Exception e) {
-			throw new AmazonClientException(
-					"Cannot load the credentials from the credential profiles file. Please make sure that your credentials file is at the correct location (~/.aws/credentials), and is in valid format.",
-					e);
-		}
-
-		AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withCredentials(credentialsProvider)
-				.withRegion("us-east-1").build();
 
 		HashMap<String, AttributeValue> expressionAttributeValues = new HashMap<String, AttributeValue>();
 		expressionAttributeValues.put(":finished", new AttributeValue().withN("0"));
@@ -452,15 +429,6 @@ public class LoadBalancer {
 					e.printStackTrace();
 					System.out.println(e.getMessage());
 					synchronized (_instances) {
-						if (_instances.size() == 1) {
-							Thread thread = new Thread() {
-								public void run() {
-									as.createInstance();
-								}
-
-							};
-							thread.start();
-						}
 						_instances.put(instance, false);
 					}
 				}

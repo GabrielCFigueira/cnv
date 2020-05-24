@@ -144,7 +144,7 @@ public class AutoScaler {
 				totalLoad += load;
 
 			System.out.println("totalLoad " + totalLoad + "\n");
-			if (nInstances > 0 && totalLoad / nInstances > highLimit)
+			if (nInstances == 0 || nInstances > 0 && totalLoad / nInstances > highLimit)
 				createInstance();
 			else if (nInstances > 1 && totalLoad / nInstances < lowLimit)
 				_instances.put(minInstance, false);
