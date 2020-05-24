@@ -82,7 +82,10 @@ public class AutoScaler {
 	public AutoScaler(ConcurrentHashMap<Instance, Boolean> instances) {
 		init();
 		_instances = instances;
-		createInstance();
+		
+		synchronized(_instances) {
+			createInstance();
+		}
 
 	}
 
@@ -105,53 +108,56 @@ public class AutoScaler {
 		long minLoad = Long.MAX_VALUE;
 		Instance minInstance = null;
 
-		for (Instance instance : _instances.keySet()) {
+		synchronized(_instances) {
+			
+			for (Instance instance : _instances.keySet()) {
 
-			HashMap<String, AttributeValue> expressionAttributeValues = new HashMap<String, AttributeValue>();
-			expressionAttributeValues.put(":finished", new AttributeValue().withN("0"));
-			expressionAttributeValues.put(":instanceId", new AttributeValue(instance.getInstanceId()));
+				HashMap<String, AttributeValue> expressionAttributeValues = new HashMap<String, AttributeValue>();
+				expressionAttributeValues.put(":finished", new AttributeValue().withN("0"));
+				expressionAttributeValues.put(":instanceId", new AttributeValue(instance.getInstanceId()));
 
-			ScanRequest scanRequest = new ScanRequest().withTableName("requests_data")
-					.withFilterExpression(":finished = Finished and :instanceId = InstanceId")
-					.withProjectionExpression("InstructionCount, Estimate")
-					.withExpressionAttributeValues(expressionAttributeValues);
+				ScanRequest scanRequest = new ScanRequest().withTableName("requests_data")
+						.withFilterExpression(":finished = Finished and :instanceId = InstanceId")
+						.withProjectionExpression("InstructionCount, Estimate")
+						.withExpressionAttributeValues(expressionAttributeValues);
 
-			System.out.println(instance.getInstanceId() + ":");
-			ScanResult scanResult = dynamoDB.scan(scanRequest);
+				System.out.println(instance.getInstanceId() + ":");
+				ScanResult scanResult = dynamoDB.scan(scanRequest);
 
-			boolean hasRequests = false;
-			long load = 0;
-			for (Map<String, AttributeValue> item : scanResult.getItems()) {
-				hasRequests = true;
-				long progress = Long.parseLong(item.get("InstructionCount").getN());
-				long estimate = Long.parseLong(item.get("Estimate").getN());
-				if (estimate > progress)
-					load += estimate - progress;
-				System.out.println("progress " + progress);
-				System.out.println("estimate " + estimate);
+				boolean hasRequests = false;
+				long load = 0;
+				for (Map<String, AttributeValue> item : scanResult.getItems()) {
+					hasRequests = true;
+					long progress = Long.parseLong(item.get("InstructionCount").getN());
+					long estimate = Long.parseLong(item.get("Estimate").getN());
+					if (estimate > progress)
+						load += estimate - progress;
+					System.out.println("progress " + progress);
+					System.out.println("estimate " + estimate);
+				}
+				if (minLoad > load && _instances.get(instance) == true) {
+					minLoad = load;
+					minInstance = instance;
+				}
+				if (_instances.get(instance) == false && !hasRequests)
+					destroyInstance(instance);
+				else if (_instances.get(instance) == true) {
+					nInstances++;
+					System.out.println("load " + load);
+					systemLoad.put(instance.getInstanceId(), load);
+				}
 			}
-			if (minLoad > load && _instances.get(instance) == true) {
-				minLoad = load;
-				minInstance = instance;
-			}
-			if (_instances.get(instance) == false && !hasRequests)
-				destroyInstance(instance);
-			else if (_instances.get(instance) == true) {
-				nInstances++;
-				System.out.println("load " + load);
-				systemLoad.put(instance.getInstanceId(), load);
-			}
+
+			long totalLoad = 0;
+			for (long load : systemLoad.values())
+				totalLoad += load;
+
+			System.out.println("totalLoad " + totalLoad + "\n");
+			if (nInstances > 0 && totalLoad / nInstances > highLimit)
+				createInstance();
+			else if (nInstances > 1 && totalLoad / nInstances < lowLimit)
+				_instances.put(minInstance, false);
 		}
-
-		long totalLoad = 0;
-		for (long load : systemLoad.values())
-			totalLoad += load;
-
-		System.out.println("totalLoad " + totalLoad + "\n");
-		if (nInstances > 0 && totalLoad / nInstances > highLimit)
-			createInstance();
-		else if (nInstances > 1 && totalLoad / nInstances < lowLimit)
-			_instances.put(minInstance, false);
 	}
 
 	public void createInstance() {
@@ -159,10 +165,14 @@ public class AutoScaler {
 		System.out.println("Starting a new instance.");
 		RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 
-		runInstancesRequest.withImageId("ami-08b719668fbc1280d").withInstanceType("t2.micro").withMinCount(1)
-				.withMaxCount(1).withKeyName("CNV-lab-AWS").withSecurityGroups("CNV-ssh+http");
-
-		RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
+		runInstancesRequest.withImageId("ami-0a389ed78bcf2af66")
+			.withInstanceType("t2.micro")							
+			.withMinCount(1)
+			.withMaxCount(1)
+			.withKeyName("CNV-lab-AWS")		
+			.withSecurityGroups("CNV-ssh+http");	
+					
+   		RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
 		String instanceId = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
 
 		DescribeInstancesRequest request = new DescribeInstancesRequest().withInstanceIds(instanceId);

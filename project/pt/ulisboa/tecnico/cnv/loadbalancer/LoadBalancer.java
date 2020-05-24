@@ -141,6 +141,7 @@ public class LoadBalancer {
 						minInstance = instance;
 					}
 				}
+			
 
 				if (minInstance != null) {
 					System.out.println("minimalLoad: " + minLoad + " :instance" + minInstance.getInstanceId() + "\n");
@@ -160,10 +161,11 @@ public class LoadBalancer {
 
 					}
 				}
-
 			}
+
+			
 			try {
-				Thread.sleep(3000);
+				Thread.sleep(5000);
 			} catch (Exception e) {
 				System.out.println(e.getMessage());
 				e.printStackTrace();
@@ -215,46 +217,48 @@ public class LoadBalancer {
 		long dividedCost = 0L;
 		Map<Integer, List<Long>> closeRequests = new HashMap<Integer, List<Long>>();
 		int maxSimilarity = 0;
-		for (Map<String, AttributeValue> prevRequest : _history.values()) {
-			int similarity = 0;
-			if ((prevRequest.get("Puzzle").getS()).equals(userRequest.get("i"))) {
-				System.out.println("Equal puzzle");
-				similarity += 1;
-			}
-			if ((prevRequest.get("ldim").getN()).equals(userRequest.get("n2"))) {
-				System.out.println("Equal size");
-				similarity += 1;
-				if ((prevRequest.get("Unassigned").getN()).equals(userRequest.get("un"))) {
-					System.out.println("Equal unassigned number");
-					similarity += 2;
-				} else if (Math.abs(Long.parseLong(prevRequest.get("Unassigned").getN())
-						- Long.parseLong(userRequest.get("un"))) < Math.pow(Integer.parseInt(userRequest.get("n2")), 2)
-								/ 4) {
-					System.out.println("Difference between unassigned is less than 1/4");
+		synchronized(_history) {
+			
+			for (Map<String, AttributeValue> prevRequest : _history.values()) {
+				int similarity = 0;
+				if ((prevRequest.get("Puzzle").getS()).equals(userRequest.get("i"))) {
+					System.out.println("Equal puzzle");
 					similarity += 1;
-				} else {
-					System.out.println("Too different unassigned");
-					similarity -= 40;
 				}
-			} else {
-				System.out.println("Different size");
-				similarity -= 80;
-			}
-			if ((prevRequest.get("Algorithm").getS()).equals(userRequest.get("s"))) {
-				System.out.println("Equal algorithm");
-				similarity += 2;
-			}
-			// Put cost in map according to similarity
-			if (closeRequests.get(similarity) == null) {
-				closeRequests.put(similarity, new ArrayList<Long>());
-			}
-			System.out.println("The similarity value to the request was: " + similarity);
-			// TODO Potentially overwrite with the number of instructions
-			System.out.println(
-					"The estimate value of the request is: " + Long.parseLong(prevRequest.get("Estimate").getN()));
-			closeRequests.get(similarity).add(Long.parseLong(prevRequest.get("InstructionCount").getN()));
-			if (similarity > maxSimilarity) {
-				maxSimilarity = similarity;
+				if ((prevRequest.get("ldim").getN()).equals(userRequest.get("n2"))) {
+					System.out.println("Equal size");
+					similarity += 1;
+					if ((prevRequest.get("Unassigned").getN()).equals(userRequest.get("un"))) {
+						System.out.println("Equal unassigned number");
+						similarity += 2;
+					} else if (Math.abs(Long.parseLong(prevRequest.get("Unassigned").getN())
+							- Long.parseLong(userRequest.get("un"))) < Math.pow(Integer.parseInt(userRequest.get("n2")), 2)
+									/ 4) {
+						System.out.println("Difference between unassigned is less than 1/4");
+						similarity += 1;
+					} else {
+						System.out.println("Too different unassigned");
+						similarity -= 40;
+					}
+				} else {
+					System.out.println("Different size");
+					similarity -= 80;
+				}
+				if ((prevRequest.get("Algorithm").getS()).equals(userRequest.get("s"))) {
+					System.out.println("Equal algorithm");
+					similarity += 2;
+				}
+				// Put cost in map according to similarity
+				if (closeRequests.get(similarity) == null) {
+					closeRequests.put(similarity, new ArrayList<Long>());
+				}
+				System.out.println("The similarity value to the request was: " + similarity);
+				System.out.println("The estimate value of the request is: " + Long.parseLong(prevRequest.get("Estimate").getN()));
+
+				closeRequests.get(similarity).add(Long.parseLong(prevRequest.get("InstructionCount").getN()));
+				if (similarity > maxSimilarity) {
+					maxSimilarity = similarity;
+				}
 			}
 		}
 		// Calcualte the cost
@@ -315,7 +319,7 @@ public class LoadBalancer {
 			public void run() {
 				try {
 					while (true) {
-						Thread.sleep(1000);
+						Thread.sleep(5000);
 						as.run();
 					}
 				} catch (Exception e) {
@@ -359,29 +363,27 @@ public class LoadBalancer {
 				try {
 					URL url = null;
 
-					synchronized (_instances) {
-
-						// heuristic
-						String[] params = query.split("&");
-						long unassigned = 0;
-						Map<String, String> args = new HashMap<String, String>();
-						for (String st : params) {
-							String[] split = st.split("=");
-							args.put(split[0], split[1]);
-						}
-
-						long estimate = findCloseRequests(args);
-						long executingRequest = findEqualExecutingRequests(args);
-						System.out.println("First estimate value obtained: " + estimate);
-						if (estimate == 0)
-							estimate = Math.max(executingRequest, heuristic(Long.parseLong(args.get("un"))));
-						else
-							estimate = Math.max(executingRequest, estimate);
-
-						instance = lowestLoad(uniqueId, Long.toString(estimate));
-						url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?"
-								+ t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId);
+					// heuristic
+					String[] params = query.split("&");
+					long unassigned = 0;
+					Map<String, String> args = new HashMap<String, String>();
+					for (String st : params) {
+						String[] split = st.split("=");
+						args.put(split[0], split[1]);
 					}
+
+					long estimate = findCloseRequests(args);
+					long executingRequest = findEqualExecutingRequests(args);
+					System.out.println("First estimate value obtained: " + estimate);
+					if (estimate == 0)
+						estimate = Math.max(executingRequest, heuristic(Long.parseLong(args.get("un"))));
+					else
+						estimate = Math.max(executingRequest, estimate);
+
+					instance = lowestLoad(uniqueId, Long.toString(estimate));
+					url = new URL("http://" + instance.getPublicDnsName() + ":8000/sudoku?"
+							+ t.getRequestURI().getQuery() + "&e=" + estimate + "&k=" + uniqueId);
+					
 					HttpURLConnection con = (HttpURLConnection) url.openConnection();
 					// In order to request a server
 					con.setDoOutput(true);
@@ -416,10 +418,9 @@ public class LoadBalancer {
 							.withExpressionAttributeValues(expressionAttributeValues);
 					ScanResult scanResult = dynamoDB.scan(scanRequest);
 
-					for (Map<String, AttributeValue> item : scanResult.getItems()) {
-						for (String sItem : item.keySet())
-							System.out.println(sItem);
-						_history.put(uniqueId, item);
+					synchronized(_history) {
+						for (Map<String, AttributeValue> item : scanResult.getItems())
+							_history.put(uniqueId, item);
 					}
 
 					// In order to return to the client
