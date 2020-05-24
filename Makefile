@@ -15,7 +15,7 @@ all:
 	(cd project/pt/ulisboa/tecnico/cnv/server; javac WebServer.java)
 	(java -XX:-UseSplitVerifier BIT/OurTool project/pt/ulisboa/tecnico/cnv/solver/ instrumented/pt/ulisboa/tecnico/cnv/solver)
 run:
-	(java -XX:-UseSplitVerifier pt.ulisboa.tecnico.cnv.server.WebServer >> ola.log)
+	(java -XX:-UseSplitVerifier pt.ulisboa.tecnico.cnv.server.WebServer >> webserver.log)
 
 clean:
 	(cd BIT/samples; $(RM) *.class)
