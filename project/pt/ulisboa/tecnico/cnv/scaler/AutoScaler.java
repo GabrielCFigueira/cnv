@@ -34,12 +34,6 @@ import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.Reservation;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
-import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
-import com.amazonaws.services.cloudwatch.model.Dimension;
-import com.amazonaws.services.cloudwatch.model.Datapoint;
-import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsRequest;
-import com.amazonaws.services.cloudwatch.model.GetMetricStatisticsResult;
 import com.amazonaws.waiters.*;
 
 import java.io.BufferedReader;
@@ -58,7 +52,6 @@ public class AutoScaler {
 
 	private ConcurrentHashMap<Instance, Boolean> _instances;
 	private AmazonEC2 ec2;
-	private AmazonCloudWatch cloudWatch;
 
 	private long highLimit = 2174126532L;
 	private long lowLimit = 1087063266L;
@@ -74,8 +67,6 @@ public class AutoScaler {
 		}
 
 		ec2 = AmazonEC2ClientBuilder.standard().withRegion("us-east-1")
-				.withCredentials(new AWSStaticCredentialsProvider(credentials)).build();
-		cloudWatch = AmazonCloudWatchClientBuilder.standard().withRegion("us-east-1")
 				.withCredentials(new AWSStaticCredentialsProvider(credentials)).build();
 	}
 
