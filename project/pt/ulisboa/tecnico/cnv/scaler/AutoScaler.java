@@ -1,4 +1,4 @@
-package pt.ulisboa.tecnico.cnv.loadbalancer;
+package pt.ulisboa.tecnico.cnv.scaler;
 
 import java.io.IOException;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
