@@ -66,7 +66,9 @@ import com.amazonaws.util.EC2MetadataUtils;
 public class WebServer {
 
 	static String instanceId;
-	private static Map<String, AttributeValue> newItem(String puzzle, String ninstructions, String lines, String columns, String unassigned, String algorithm, String finished, String estimate, String uniqueId) {
+
+	private static Map<String, AttributeValue> newItem(String puzzle, String ninstructions, String lines,
+			String columns, String unassigned, String algorithm, String finished, String estimate, String uniqueId) {
 		Map<String, AttributeValue> item = new HashMap<String, AttributeValue>();
 		item.put("Puzzle", new AttributeValue(puzzle));
 		item.put("RequestId", new AttributeValue(uniqueId));
@@ -75,15 +77,16 @@ public class WebServer {
 		item.put("Unassigned", new AttributeValue().withN(unassigned));
 		item.put("Algorithm", new AttributeValue(algorithm));
 		item.put("InstructionCount", new AttributeValue().withN(ninstructions));
-		item.put("InstanceId",new AttributeValue(instanceId));
-		item.put("Finished",new AttributeValue().withN(finished));
+		item.put("InstanceId", new AttributeValue(instanceId));
+		item.put("Finished", new AttributeValue().withN(finished));
 		item.put("Estimate", new AttributeValue().withN(estimate));
 		return item;
 	}
 
 	public static void main(final String[] args) throws Exception {
 
-		//final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 8000), 0);
+		// final HttpServer server = HttpServer.create(new
+		// InetSocketAddress("127.0.0.1", 8000), 0);
 
 		instanceId = EC2MetadataUtils.getInstanceId();
 
@@ -100,25 +103,25 @@ public class WebServer {
 	}
 
 	public static String parseRequestBody(InputStream is) throws IOException {
-        InputStreamReader isr =  new InputStreamReader(is,"utf-8");
-        BufferedReader br = new BufferedReader(isr);
+		InputStreamReader isr = new InputStreamReader(is, "utf-8");
+		BufferedReader br = new BufferedReader(isr);
 
-        // From now on, the right way of moving from bytes to utf-8 characters:
+		// From now on, the right way of moving from bytes to utf-8 characters:
 
-        int b;
-        StringBuilder buf = new StringBuilder(512);
-        while ((b = br.read()) != -1) {
-            buf.append((char) b);
+		int b;
+		StringBuilder buf = new StringBuilder(512);
+		while ((b = br.read()) != -1) {
+			buf.append((char) b);
 
-        }
+		}
 
-        br.close();
-        isr.close();
+		br.close();
+		isr.close();
 
-        return buf.toString();
-    }
+		return buf.toString();
+	}
 
-    static class TestHandler implements HttpHandler {
+	static class TestHandler implements HttpHandler {
 		@Override
 		public void handle(final HttpExchange t) throws IOException {
 			String response = "The instance is working";
@@ -146,18 +149,17 @@ public class WebServer {
 			final ArrayList<String> newArgs = new ArrayList<>();
 			int i = 0;
 			for (final String p : params) {
-				
-				if (i < params.length-2){
+
+				if (i < params.length - 2) {
 					final String[] splitParam = p.split("=");
 					newArgs.add("-" + splitParam[0]);
 					newArgs.add(splitParam[1]);
 					i++;
-				} else if (i == params.length-2) {
+				} else if (i == params.length - 2) {
 
 					estimate = p.split("=")[1];
 					i++;
-				}
-				  else if (i == params.length-1){
+				} else if (i == params.length - 1) {
 					uniqueId = p.split("=")[1];
 				}
 			}
@@ -169,7 +171,7 @@ public class WebServer {
 			// Store from ArrayList into regular String[].
 			i = 0;
 			final String[] args = new String[newArgs.size()];
-			for(String arg: newArgs) {
+			for (String arg : newArgs) {
 				args[i] = arg;
 				i++;
 			}
@@ -181,53 +183,52 @@ public class WebServer {
 			final Solver s = SolverFactory.getInstance().makeSolver(ap);
 
 			final long threadId = Thread.currentThread().getId();
-			//Start a pending thread to continuously update the data of a request
-			final String estimatE = estimate;
-			final String uniqueID = uniqueId;
-			
-			Thread thread = new Thread(){
-				public void run(){
-					try{
-						while(!OurTool.hasTaskFinished(threadId)){
+			// Start a pending thread to continuously update the data of a request
+			final String _estimate = estimate;
+			final String _uniqueID = uniqueId;
+
+			Thread thread = new Thread() {
+				public void run() {
+					try {
+						while (!OurTool.hasTaskFinished(threadId)) {
 							Thread.sleep(3000);
-							UpdateDatabase(args[9],args[5],args[7],args[3],args[1],threadId,"0", estimatE, uniqueID);
+							UpdateDatabase(args[9], args[5], args[7], args[3], args[1], threadId, "0", _estimate,
+							_uniqueID);
 						}
-					}
-					catch(InterruptedException e){
+					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-					UpdateDatabase(args[9],args[5],args[7],args[3],args[1],threadId,"1", estimatE, uniqueID); 
+					UpdateDatabase(args[9], args[5], args[7], args[3], args[1], threadId, "1", _estimate, _uniqueID);
 				}
-			 };
+			};
 
-			  thread.start();
+			thread.start();
 
-			//Solve sudoku puzzle
+			// Solve sudoku puzzle
 			JSONArray solution = s.solveSudoku();
 
 			// Send response to browser.
 			final Headers hdrs = t.getResponseHeaders();
 
-            //t.sendResponseHeaders(200, responseFile.length());
+			// t.sendResponseHeaders(200, responseFile.length());
 
-
-			///hdrs.add("Content-Type", "image/png");
-            hdrs.add("Content-Type", "application/json");
+			/// hdrs.add("Content-Type", "image/png");
+			hdrs.add("Content-Type", "application/json");
 
 			hdrs.add("Access-Control-Allow-Origin", "*");
 
-            hdrs.add("Access-Control-Allow-Credentials", "true");
+			hdrs.add("Access-Control-Allow-Credentials", "true");
 			hdrs.add("Access-Control-Allow-Methods", "POST, GET, HEAD, OPTIONS");
-			hdrs.add("Access-Control-Allow-Headers", "Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
+			hdrs.add("Access-Control-Allow-Headers",
+					"Origin, Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers");
 
-            t.sendResponseHeaders(200, solution.toString().length());
+			t.sendResponseHeaders(200, solution.toString().length());
 
-
-            final OutputStream os = t.getResponseBody();
-            OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
-            osw.write(solution.toString());
-            osw.flush();
-            osw.close();
+			final OutputStream os = t.getResponseBody();
+			OutputStreamWriter osw = new OutputStreamWriter(os, "UTF-8");
+			osw.write(solution.toString());
+			osw.flush();
+			osw.close();
 
 			os.close();
 
@@ -235,51 +236,53 @@ public class WebServer {
 		}
 	}
 
-	public static void UpdateDatabase(String puzzle, String lines, String columns, String unassigned, String algorithm, long threadId, String finished, String estimate, String uniqueId){
+	public static void UpdateDatabase(String puzzle, String lines, String columns, String unassigned, String algorithm,
+			long threadId, String finished, String estimate, String uniqueId) {
 		String ninstructions = OurTool.getStatisticsData(threadId);
 
-		try{
-			/*AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration(
-				new AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
-				.build();*/
+		try {
+			/*
+			 * AmazonDynamoDB dynamoDB =
+			 * AmazonDynamoDBClientBuilder.standard().withEndpointConfiguration( new
+			 * AwsClientBuilder.EndpointConfiguration("http://localhost:8043", "eu-west-1"))
+			 * .build();
+			 */
 			ProfileCredentialsProvider credentialsProvider = new ProfileCredentialsProvider();
 			try {
 				credentialsProvider.getCredentials();
 			} catch (Exception e) {
-				throw new AmazonClientException(
-				"Cannot load the credentials from the credential profiles file. " +
-				"Please make sure that your credentials file is at the correct " +
-				"location (~/.aws/credentials), and is in valid format.",
-				e);
+				throw new AmazonClientException("Cannot load the credentials from the credential profiles file. "
+						+ "Please make sure that your credentials file is at the correct "
+						+ "location (~/.aws/credentials), and is in valid format.", e);
 			}
 
-			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard()
-            			.withCredentials(credentialsProvider)
-            			.withRegion("us-east-1")
-            			.build();
+			AmazonDynamoDB dynamoDB = AmazonDynamoDBClientBuilder.standard().withCredentials(credentialsProvider)
+					.withRegion("us-east-1").build();
 
 			String tableName = "requests_data";
 
 			CreateTableRequest createTableRequest = new CreateTableRequest().withTableName(tableName)
-				.withKeySchema(new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.HASH))
-				.withAttributeDefinitions(new AttributeDefinition().withAttributeName("RequestId").withAttributeType(ScalarAttributeType.S))
-				.withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
+					.withKeySchema(new KeySchemaElement().withAttributeName("RequestId").withKeyType(KeyType.HASH))
+					.withAttributeDefinitions(new AttributeDefinition().withAttributeName("RequestId")
+							.withAttributeType(ScalarAttributeType.S))
+					.withProvisionedThroughput(
+							new ProvisionedThroughput().withReadCapacityUnits(1L).withWriteCapacityUnits(1L));
 
 			TableUtils.createTableIfNotExists(dynamoDB, createTableRequest);
 			TableUtils.waitUntilActive(dynamoDB, tableName);
-			
+
 			if (Long.parseLong(estimate) < Long.parseLong(ninstructions))
 				estimate = ninstructions;
 
-			Map<String, AttributeValue> item = newItem(puzzle, ninstructions,lines,columns,unassigned,algorithm,finished, estimate, uniqueId);
+			Map<String, AttributeValue> item = newItem(puzzle, ninstructions, lines, columns, unassigned, algorithm,
+					finished, estimate, uniqueId);
 			PutItemRequest putItemRequest = new PutItemRequest(tableName, item);
 			PutItemResult putItemResult = dynamoDB.putItem(putItemRequest);
 
-			//Scan for the tables data
+			// Scan for the tables data
 			HashMap<String, Condition> scanFilter = new HashMap<String, Condition>();
-			Condition condition = new Condition()
-				.withComparisonOperator(ComparisonOperator.GE.toString())
-				.withAttributeValueList(new AttributeValue("1"));
+			Condition condition = new Condition().withComparisonOperator(ComparisonOperator.GE.toString())
+					.withAttributeValueList(new AttributeValue("1"));
 			scanFilter.put("RequestId", condition);
 			ScanRequest scanRequest = new ScanRequest("requests_data").withScanFilter(scanFilter);
 			ScanResult scanResult = dynamoDB.scan(scanRequest);
@@ -298,8 +301,7 @@ public class WebServer {
 					+ "a serious internal problem while trying to communicate with AWS, "
 					+ "such as not being able to access the network.");
 			System.out.println("Error Message: " + ace.getMessage());
-		}
-		catch(InterruptedException e){
+		} catch (InterruptedException e) {
 			System.out.println("It may have been interrupted");
 		}
 	}
